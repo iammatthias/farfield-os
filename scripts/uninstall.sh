@@ -170,6 +170,10 @@ fi
 rm -f "$REAL_HOME/.config/zsh/prompt.zsh"
 sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.local/share/zinit" "$REAL_HOME/.oh-my-zsh" || true
 
+# Claude Code native binary (auth/state in ~/.claude is left alone —
+# that's user data).
+rm -f "$REAL_HOME/.local/bin/claude"
+
 # herdr — stop the background server, then remove the user-level install.
 sudo -u "$REAL_USER" "$REAL_HOME/.local/bin/herdr" server stop 2>/dev/null || true
 rm -f "$REAL_HOME/.local/bin/herdr"

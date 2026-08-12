@@ -27,7 +27,7 @@ personal home-server bootstrap, not a minimal TTY distribution.
 - **Btrfs + Snapper** — auto-snapshot before/after every pacman transaction; boot-into-snapshot via GRUB submenu when an update breaks the system (only when root is btrfs)
 - **Security Features** — UFW firewall, Fail2ban, SSH hardening (drop-in based)
 - **System Monitoring** — btop, iotop, nethogs, smartmontools
-- **Claude Code** — installed npm-global on the host; ssh in and run `claude` to manage the box or work on projects (`~/CLAUDE.md` gives it system context)
+- **Claude Code** — native install on the host; ssh in and run `claude` to manage the box or work on projects (`~/CLAUDE.md` gives it system context)
 - **Runtime Support** — Node.js, Bun, Python (uv), Ruby, Rust, Go, Java, Docker
 - **Development Tools** — eza, bat, fd, fzf, zoxide, ripgrep, and more
 

@@ -223,6 +223,15 @@ if ! sudo -u "$REAL_USER" bash -c 'command -v herdr || [ -x "$HOME/.local/bin/he
         || FAILED_SERVICES+=("herdr")
 fi
 
+# Claude Code — native installer (~/.local/bin/claude), NOT the npm
+# package: npm's in-place self-updates skip the platform-native optional
+# dependency and leave a launcher with no binary. The native build
+# manages its own updates atomically.
+if ! sudo -u "$REAL_USER" bash -c '[ -x "$HOME/.local/bin/claude" ]' >/dev/null 2>&1; then
+    sudo -u "$REAL_USER" bash -c 'curl -fsSL https://claude.ai/install.sh | sh' \
+        || FAILED_SERVICES+=("claude-code")
+fi
+
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshrc"  "$REAL_HOME/.zshrc"
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshenv" "$REAL_HOME/.zshenv"
 # Own ~/.config itself FIRST — `install -d -o user path/sub` creates
@@ -528,7 +537,7 @@ sudo -u "$REAL_USER" bash <<'EOF' || true
 mkdir -p "$HOME/.npm-global"
 npm config set prefix "$HOME/.npm-global"
 export PATH="$HOME/.npm-global/bin:$PATH"
-npm install -g yarn pnpm pm2 eslint prettier jest @anthropic-ai/claude-code || true
+npm install -g yarn pnpm pm2 eslint prettier jest || true
 
 # Bun
 curl -fsSL https://bun.sh/install | bash || true

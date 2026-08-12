@@ -53,8 +53,8 @@ on every pacman transaction) and grub-btrfs (boot-into-snapshot from GRUB).
 `/var/lib/{postgres,valkey,docker}` get `chattr +C` to skip CoW on
 high-churn database/container files.
 
-The AI surface is **Claude Code on the host** (`claude`, installed
-npm-global): ssh in and run `claude` to manage the box or work on
+The AI surface is **Claude Code on the host** (`claude`, native install
+in ~/.local/bin): ssh in and run `claude` to manage the box or work on
 projects. Auth (subscription OAuth) is interactive — `ff-bootstrap`
 walks it once post-install.
 
@@ -120,8 +120,8 @@ ff-help     # Full command reference
    locations, configure UFW + fail2ban + SSH hardening, init Postgres cluster,
    enable systemd units (ff-stack, Docker, Postgres, Valkey).
 3. **Per-user tooling** (run as `$REAL_USER` via `sudo -u`): Oh My Zsh, plugins,
-   Spaceship prompt, npm globals (yarn/pnpm/pm2/eslint/prettier/jest +
-   `@anthropic-ai/claude-code`), Bun, `uv tool install` (ruff/pytest/black),
+   Spaceship prompt, npm globals (yarn/pnpm/pm2/eslint/prettier/jest),
+   Claude Code (native installer), Bun, `uv tool install` (ruff/pytest/black),
    Ruby bundler, rustup, Go delve.
 
 Setup is run as root. The script derives the target user via `logname`, and

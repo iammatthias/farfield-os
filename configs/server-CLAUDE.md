@@ -28,7 +28,7 @@ It is a single-tenant home server intended for remote development over SSH.
 - **Java** (`java`, `mvn`, `gradle`)
 
 ### AI / LLM tooling
-- **Claude Code** (`claude`, npm-global) — the primary way this box is
+- **Claude Code** (`claude`, native install in ~/.local/bin) — the primary way this box is
   managed: ssh in, run `claude`. Subscription auth lives at `~/.claude/`.
   You are probably reading this file from inside such a session.
 - **New projects** — `ff-project-init <path> [<description>]` creates
