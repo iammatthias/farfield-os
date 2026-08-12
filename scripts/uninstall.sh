@@ -156,6 +156,7 @@ backup_and_remove "$REAL_HOME/.config/fastfetch/config.jsonc"
 backup_and_remove "$REAL_HOME/.config/sway/config"
 backup_and_remove "$REAL_HOME/.config/foot/foot.ini"
 backup_and_remove "$REAL_HOME/.config/btop/btop.conf"
+rm -f "$REAL_HOME/.config/btop/themes/farfield.theme"
 
 # Only back up CLAUDE.md if it's the one farfield os installed (sentinel: first
 # line is "# farfield os server" — or "# GNAR Server" from pre-rename
