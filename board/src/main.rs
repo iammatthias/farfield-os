@@ -1436,8 +1436,12 @@ fn claude_usage() -> (usize, usize) {
 /// transcript parsing, no subprocesses.
 fn claude_scan() -> (Vec<(String, usize, u64)>, VecDeque<f64>, bool, usize, usize) {
     let home = std::env::var("HOME").unwrap_or_default();
-    let authed = std::path::Path::new(&format!("{home}/.claude.json")).exists()
-        || std::path::Path::new(&format!("{home}/.claude/.credentials.json")).exists();
+    // Signed-in means credentials, not config — merely running `claude
+    // --version` creates ~/.claude.json without any login.
+    let authed = std::path::Path::new(&format!("{home}/.claude/.credentials.json")).exists()
+        || std::fs::read_to_string(format!("{home}/.claude.json"))
+            .map(|s| s.contains("\"oauthAccount\""))
+            .unwrap_or(false);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
