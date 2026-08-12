@@ -585,7 +585,7 @@ install -m 755 "$BIN/ff-migrate"          /usr/local/bin/ff-migrate
 
 # One-time migrations (migrations/*.sh, marker-tracked, idempotent) —
 # converges upgraded boxes with fresh installs.
-FF_REPO="$REPO_ROOT" bash "$BIN/ff-migrate" || \
+FF_REPO="$REPO_ROOT" FF_REAL_USER="$REAL_USER" bash "$BIN/ff-migrate" || \
     echo -e "${YELLOW}migrations incomplete — re-run ff-migrate after fixing${NC}"
 
 # ff-board — the ratatui kiosk TUI (flicker-free fullscreen board).

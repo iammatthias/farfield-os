@@ -8,8 +8,13 @@
 # stack-cycling change — see stack/README.md).
 set -euo pipefail
 
-REAL_USER=${SUDO_USER:-$(logname 2>/dev/null || echo "")}
-REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+REAL_USER=${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "")}}
+if [ -z "$REAL_USER" ] || [ "$REAL_USER" = "root" ]; then
+    echo "cannot determine target user (set FF_REAL_USER) — skipping user-home steps" >&2
+    REAL_HOME=""
+else
+    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+fi
 
 # --- old helper binaries (new ones are installed by setup.sh) ---------------
 for f in /usr/local/bin/gnar-*; do

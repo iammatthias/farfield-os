@@ -34,7 +34,10 @@ for m in "$REPO"/migrations/*.sh; do
         continue
     fi
     echo "ff-migrate: running $name"
-    if sudo bash "$m"; then
+    # FF_REAL_USER survives the sudo hop — SUDO_USER becomes "root" when
+    # root itself invokes sudo (e.g. from setup.sh), which would point
+    # user-home steps at /root.
+    if sudo FF_REAL_USER="${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || true)}}" bash "$m"; then
         sudo touch "$STATE/$name"
         ran=$((ran + 1))
     else
