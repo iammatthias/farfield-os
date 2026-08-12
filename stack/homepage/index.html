@@ -21,236 +21,131 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
 <style>
+  /* The apex pattern, on this box's own plate: the landscape carries the
+     page, one copy block in the open sky, two actions, nothing to scroll. */
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   :root{
-    --space:#0e222d;
-    --sky:#0e192a; /* sampled from the plate's upper field */
-    --paper:#f3e5d1;
-    --horizon:#e59f67;
-    --mist:#9babb3;
-    --border:rgba(243,229,209,.14);
+    --ff-space:#0e222d;
+    --ff-paper:#f3e5d1;
+    --ff-horizon:#e59f67;
+    --ff-sky:#0e192a; /* sampled from the plate's upper field */
+    --font-display:"Newsreader",Georgia,serif;
+    --font-sans:"Inter",system-ui,sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,monospace;
   }
-  html{scroll-behavior:smooth}
-  body{
-    background:var(--sky);
-    color:var(--paper);
-    font-family:"Inter",system-ui,sans-serif;
-    font-size:1.0625rem;
-    line-height:1.6;
-  }
-  a{color:var(--paper);text-decoration:none;border-bottom:1px solid rgba(243,229,209,.35);padding-bottom:1px}
-  a:hover{border-color:rgba(243,229,209,.75)}
-  a:focus-visible{outline:2px solid var(--horizon);outline-offset:3px}
+  html,body{height:100%;width:100%}
+  body{background:var(--ff-sky);overflow:hidden}
 
-  /* ── nav: light enough that the landscape stays dominant ── */
-  nav{
-    position:absolute;top:0;left:0;right:0;z-index:2;
-    display:flex;justify-content:space-between;align-items:baseline;
-    gap:1rem;flex-wrap:wrap;
-    padding:1.4rem clamp(1.25rem, 5vw, 3.5rem);
+  /* The plate. Wide screens: full bleed, the server tower center, its
+     signal arcing to the edge. Tall screens: the banner holds the bottom of
+     the page at its own scale — it is a horizon already — and the flat
+     field above extends its sky. */
+  .plate{
+    position:fixed;inset:0;
+    width:100%;height:100%;
+    object-fit:cover;
+    object-position:46% 72%;
   }
-  .wordmark{font-weight:500;font-size:1rem;letter-spacing:-.01em;border:0}
-  nav ul{display:flex;gap:clamp(1rem, 3vw, 2rem);list-style:none;flex-wrap:wrap}
-  nav ul a{font-size:.9rem;font-weight:500;border:0;opacity:.85}
-  nav ul a:hover{opacity:1;border-bottom:1px solid rgba(243,229,209,.5)}
+  @media (max-aspect-ratio: 9/10){
+    body{overflow:auto}
+    .plate{
+      top:auto;bottom:0;
+      height:auto;max-height:60vh;
+      object-fit:contain;object-position:bottom;
+      -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12%);
+      mask-image:linear-gradient(to bottom,transparent 0,#000 12%);
+    }
+  }
 
-  /* ── hero: the plate carries it ── */
-  .hero{position:relative;min-height:min(88vh, 46rem);display:flex;align-items:center}
-  .hero img{
-    position:absolute;inset:0;width:100%;height:100%;
-    object-fit:cover;object-position:46% 72%;
-    z-index:0;
+  /* Copy sits in the open left sky, away from the tower and the arc. */
+  .copy{
+    position:fixed;
+    top:clamp(4rem, 26vh, 19rem);
+    left:clamp(1.5rem, 5vw, 4.5rem);
+    right:clamp(1.25rem, 6vw, 6rem);
+    max-width:40ch;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:1.4rem;
+    color:var(--ff-paper);
   }
-  .hero-copy{
-    position:relative;z-index:1;
-    padding:6rem clamp(1.25rem, 5vw, 3.5rem) 3rem;
-    max-width:34rem;
-    display:flex;flex-direction:column;align-items:flex-start;gap:1.3rem;
+  @media (max-aspect-ratio: 9/10){
+    .copy{
+      position:static;
+      max-width:40ch;
+      padding:calc(env(safe-area-inset-top) + 3.5rem) 7vw 0;
+    }
   }
+
   h1{
-    font-family:"Newsreader",Georgia,serif;
+    font-family:var(--font-display);
     font-weight:400;
-    font-size:clamp(2.8rem, 7vw, 4.5rem);
-    line-height:.98;
+    font-size:clamp(3rem, 8vw, 5.5rem);
+    line-height:.96;
     letter-spacing:-.025em;
+    text-wrap:balance;
     text-shadow:0 1px 3px rgba(8,14,26,.5);
   }
   .lede{
-    font-size:clamp(1.05rem, 2vw, 1.2rem);
+    font-family:var(--font-sans);
+    font-weight:400;
+    font-size:clamp(1rem, 1.4vw, 1.3rem);
+    line-height:1.5;
     color:rgba(243,229,209,.88);
-    max-width:30ch;
+    max-width:36ch;
     text-wrap:pretty;
     text-shadow:0 1px 2px rgba(8,14,26,.55);
   }
-  .actions{display:flex;flex-wrap:wrap;align-items:center;gap:1.4rem}
-  .cta{
-    display:inline-block;font-weight:500;font-size:.95rem;
-    color:var(--space);background:var(--horizon);
-    border:1px solid var(--horizon);border-radius:4px;
+  .actions{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:1.5rem;
+  }
+  .button-primary{
+    font-family:var(--font-sans);
+    font-weight:500;
+    font-size:.95rem;
+    color:var(--ff-space);
+    background:var(--ff-horizon);
+    border:1px solid var(--ff-horizon);
+    border-radius:4px;
     padding:.6rem 1.2rem;
+    text-decoration:none;
+    text-shadow:none;
+    transition:background 140ms ease-out,border-color 140ms ease-out;
   }
-  .cta:hover{background:#eeb183;border-color:#eeb183}
-  .cta:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
-  .alt{
-    font-family:"IBM Plex Mono",ui-monospace,monospace;
-    font-size:.85rem;font-weight:500;letter-spacing:.08em;
+  .button-primary:hover{background:#eeb183;border-color:#eeb183}
+  .button-primary:focus-visible{outline:2px solid var(--ff-horizon);outline-offset:2px}
+  .alt-link{
+    font-family:var(--font-mono);
+    font-size:.85rem;
+    font-weight:500;
+    letter-spacing:.08em;
     color:rgba(243,229,209,.92);
-    border-bottom:1px solid rgba(243,229,209,.45);padding-bottom:2px;
+    text-decoration:none;
+    border-bottom:1px solid rgba(243,229,209,.45);
+    padding-bottom:2px;
     text-shadow:0 1px 2px rgba(8,14,26,.55);
+    transition:color 140ms ease-out,border-color 140ms ease-out;
   }
-
-  /* Tall screens: copy on the flat field, the plate becomes the horizon
-     strip below it — the banner is a horizon already. */
-  @media (max-aspect-ratio: 1/1){
-    .hero{flex-direction:column;align-items:stretch;min-height:0}
-    /* Copy rides the flat field; the plate closes the hero as its horizon. */
-    .hero img{position:static;order:2;height:auto;aspect-ratio:1600/640;object-fit:cover;object-position:44% 60%}
-    .hero-copy{padding-top:7rem;padding-bottom:3.5rem;max-width:none}
-    h1,.lede,.alt{text-shadow:none}
+  .alt-link:hover{color:var(--ff-paper);border-color:rgba(243,229,209,.8)}
+  .alt-link:focus-visible{outline:2px solid var(--ff-horizon);outline-offset:3px}
+  @media (max-aspect-ratio: 9/10){
+    h1,.lede,.alt-link{text-shadow:none}
   }
-
-  /* ── sections ── */
-  main{
-    max-width:40rem;margin-inline:auto;
-    padding:1rem clamp(1.25rem, 6vw, 4rem) 5rem;
-    display:flex;flex-direction:column;gap:clamp(4rem, 9vh, 6rem);
-  }
-  main>:first-child{margin-top:clamp(3rem, 7vh, 5rem)}
-  section{position:relative;border-top:1px solid var(--border);padding-top:2.6rem}
-  .coord{
-    position:absolute;top:-.6em;left:0;
-    font-family:"IBM Plex Mono",ui-monospace,monospace;
-    font-size:.72rem;font-weight:500;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--mist);background:var(--sky);padding-right:.75rem;
-  }
-  p+p{margin-top:1rem}
-  section p{color:rgba(243,229,209,.85);text-wrap:pretty}
-  section strong{color:var(--paper);font-weight:500}
-  code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88em}
-
-  dl{display:grid;grid-template-columns:minmax(7.5rem,auto) 1fr;gap:1rem 1.5rem}
-  dt{
-    font-family:"IBM Plex Mono",ui-monospace,monospace;
-    font-size:.72rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--mist);padding-top:.3em;
-  }
-  dd{color:rgba(243,229,209,.85);font-size:.98rem;text-wrap:pretty}
-  @media (max-width:34rem){
-    dl{grid-template-columns:1fr;gap:.2rem}
-    dt{padding-top:1rem}
-  }
-
-  pre{
-    font-family:"IBM Plex Mono",ui-monospace,monospace;
-    font-size:.85rem;line-height:1.7;color:var(--paper);
-    background:rgba(243,229,209,.045);
-    border:1px solid var(--border);border-radius:6px;
-    padding:1.1rem 1.25rem;overflow-x:auto;margin-top:1.4rem;
-  }
-  pre .c{color:var(--mist)}
-
-  .docs{list-style:none}
-  .docs li{display:flex;align-items:baseline;gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border)}
-  .docs li:last-child{border-bottom:0}
-  .docs a{font-weight:500;font-size:.98rem;white-space:nowrap}
-  .docs .line{flex:1;border-bottom:1px dotted rgba(243,229,209,.18);transform:translateY(-.3em)}
-  .docs .what{font-size:.85rem;color:var(--mist);text-align:right}
-  @media (max-width:34rem){.docs .what{display:none}}
-
-  footer{
-    max-width:40rem;margin-inline:auto;
-    padding:0 clamp(1.25rem, 6vw, 4rem) 3rem;
-  }
-  .foot-inner{
-    border-top:1px solid var(--border);padding-top:1.4rem;
-    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.6rem 1rem;
-  }
-  .foot-note{
-    font-family:"IBM Plex Mono",ui-monospace,monospace;
-    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
-    color:var(--mist);white-space:nowrap;
-  }
-  footer a{white-space:nowrap;font-size:.9rem;font-weight:500}
 </style>
 </head>
 <body>
-<nav>
-  <a class="wordmark" href="/">farfield&nbsp;os</a>
-  <ul>
-    <li><a href="#inside">Inside</a></li>
-    <li><a href="#run">Run it</a></li>
-    <li><a href="#docs">Docs</a></li>
-    <li><a href="https://github.com/iammatthias/farfield-os">GitHub</a></li>
-  </ul>
-</nav>
-
-<header class="hero">
-  <img src="/hero.webp" alt="A halftone print: a lone server tower on a vast reflective plain at dusk, one thin signal arcing from the machine to a distant point of light." fetchpriority="high">
-  <div class="hero-copy">
-    <h1>Farfield&nbsp;OS</h1>
-    <p class="lede">An opinionated home-server bootstrap for Arch&nbsp;Linux.</p>
-    <div class="actions">
-      <a class="cta" href="#run">Run it&nbsp;&rarr;</a>
-      <a class="alt" href="https://github.com/iammatthias/farfield-os">source</a>
-    </div>
-  </div>
-</header>
-
-<main>
-  <section>
-    <span class="coord">What this is</span>
-    <p>One script turns a fresh Arch install into a server managed over SSH — hardened shell, the usual runtimes, and an ingress stack (Tailscale, Caddy, Cloudflare&nbsp;Tunnel) that keeps the public surface opt-in. It's the box behind <a href="https://farfield.systems/">farfield.systems</a>.</p>
-  </section>
-
-  <section id="inside">
-    <span class="coord">Inside</span>
-    <dl>
-      <dt>Ingress</dt>
-      <dd>Tailscale in, Caddy for HTTPS, Cloudflare Tunnel for the public bits. <code>add-site</code> and friends manage the Caddyfile.</dd>
-      <dt>Shell</dt>
-      <dd>Zsh + Spaceship, tmux by default, ripgrep / fzf / eza / zoxide / bat.</dd>
-      <dt>Dashboard</dt>
-      <dd>Six live panels on an attached display, touch included. <code>ff-dashboard</code> draws the same board over SSH.</dd>
-      <dt>Runtimes</dt>
-      <dd>Node, Python (uv), Ruby, Rust, Go, Java, Docker, PostgreSQL, Valkey.</dd>
-      <dt>Snapshots</dt>
-      <dd>Btrfs + Snapper around every pacman transaction. Bad update → boot yesterday's snapshot.</dd>
-      <dt>Security</dt>
-      <dd>UFW, Fail2ban, hardened SSH.</dd>
-      <dt>Agent</dt>
-      <dd>Claude Code on the host, with system context in <code>~/CLAUDE.md</code>.</dd>
-    </dl>
-  </section>
-
-  <section id="run">
-    <span class="coord">Run it</span>
-    <p>MIT. <strong>Every default is a decision I made for my own machine</strong> — no wizard, no knobs. Fork it if you want different decisions.</p>
-    <p>You'll need a fresh <a href="https://wiki.archlinux.org/title/Installation_guide">Arch</a> install, a sudo user, and SSH. Public sites want a domain on Cloudflare; private access wants Tailscale. Read <code>setup.sh</code> before you run it.</p>
-<pre><code>git clone https://github.com/iammatthias/farfield-os.git
-cd farfield-os
-sudo ./scripts/setup.sh
-sudo reboot
-<span class="c"># then ff-bootstrap walks the one-time auth steps</span></code></pre>
-  </section>
-
-  <section id="docs">
-    <span class="coord">Docs</span>
-    <ul class="docs">
-      <li><a href="https://github.com/iammatthias/farfield-os#readme">README</a><span class="line" aria-hidden="true"></span><span class="what">the full tour</span></li>
-      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/helpers.md">Helpers</a><span class="line" aria-hidden="true"></span><span class="what">every alias and function</span></li>
-      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/configuration.md">Configuration</a><span class="line" aria-hidden="true"></span><span class="what">what lives where</span></li>
-      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/troubleshooting.md">Troubleshooting</a><span class="line" aria-hidden="true"></span><span class="what">when it doesn't</span></li>
-      <li><a href="https://farfield.systems/docs/">Fleet docs</a><span class="line" aria-hidden="true"></span><span class="what">the services this box hosts</span></li>
-      <li><a href="https://farfield.systems/status">Status</a><span class="line" aria-hidden="true"></span><span class="what">is it up right now</span></li>
-    </ul>
-  </section>
+<img class="plate" src="/hero.webp" alt="A halftone print: a lone server tower on a vast reflective plain at dusk, one thin signal arcing from the machine to a distant point of light." fetchpriority="high">
+<main class="copy">
+  <h1>Farfield&nbsp;OS</h1>
+  <p class="lede">An opinionated home-server bootstrap for Arch&nbsp;Linux. One script, one small computer, managed over&nbsp;SSH.</p>
+  <nav class="actions" aria-label="Primary">
+    <a class="button-primary" href="https://github.com/iammatthias/farfield-os#readme">Documentation&nbsp;&rarr;</a>
+    <a class="alt-link" href="https://farfield.systems/">farfield.systems</a>
+  </nav>
 </main>
-
-<footer>
-  <div class="foot-inner">
-    <a href="https://farfield.systems/">&larr; farfield.systems</a>
-    <span class="foot-note">MIT</span>
-  </div>
-</footer>
 </body>
 </html>
