@@ -225,6 +225,11 @@ fi
 
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshrc"  "$REAL_HOME/.zshrc"
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshenv" "$REAL_HOME/.zshenv"
+# Own ~/.config itself FIRST — `install -d -o user path/sub` creates
+# intermediate dirs as root and only chowns the leaf, which left ~/.config
+# root-owned and broke anything user-side that mkdirs under it (herdr's
+# server died silently trying to create its socket dir).
+install -d -o "$REAL_USER" -g "$REAL_USER" "$REAL_HOME/.config"
 install -d -o "$REAL_USER" -g "$REAL_USER" "$REAL_HOME/.config/zsh"
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" \
     "$CONFIGS/zsh-prompt.zsh" "$REAL_HOME/.config/zsh/prompt.zsh"
