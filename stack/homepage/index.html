@@ -1,77 +1,241 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>online</title>
-    <link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
-    <!-- farfield os default homepage — Deep Space field, one small signal.
-         Self-contained: system mono stack, no font CDN. -->
-    <style>
-        html, body {
-            margin: 0;
-            height: 100%;
-            background: #0e222d;
-            color: #f3e5d1;
-            font: 14px/1.4 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        }
-        main {
-            position: relative;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 18px;
-            overflow: hidden;
-        }
-        /* signal in field — a point inside one thin circle */
-        .signal {
-            width: 28px;
-            height: 28px;
-            border: 1px solid rgba(243, 229, 209, 0.35);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .signal i {
-            width: 4px;
-            height: 4px;
-            border-radius: 50%;
-            background: #e59f67;
-            animation: beacon 8s ease-in-out infinite;
-        }
-        .status { letter-spacing: 0.02em; }
-        .meta {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.14em;
-            color: #6a8699;
-        }
-        /* low horizon */
-        .horizon {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 22%;
-            border-top: 1px solid rgba(243, 229, 209, 0.14);
-        }
-        @keyframes beacon {
-            0%, 88%, 100% { opacity: 0.55; }
-            94% { opacity: 1; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .signal i { animation: none; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e222d">
+<title>Farfield OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+<meta name="description" content="Farfield OS — an opinionated home-server bootstrap for Arch Linux. One script turns a fresh install into a machine managed entirely over SSH: hardened shell, language runtimes, and an ingress stack that decides what the world can see.">
+<link rel="canonical" href="https://os.farfield.systems/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="farfield">
+<meta property="og:url" content="https://os.farfield.systems/">
+<meta property="og:title" content="Farfield OS">
+<meta property="og:description" content="An opinionated home-server bootstrap for Arch Linux. One script, one small computer, managed over SSH.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<style>
+  /* Plate mode: an editorial page on the Deep Space field. Newsreader for
+     the display lines, Inter for the reading, Plex Mono for the labels and
+     anything a terminal would say. Orange appears exactly once. */
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --space:#0e222d;
+    --paper:#f3e5d1;
+    --horizon:#e59f67;
+    --mist:#9babb3;
+    --border:rgba(243,229,209,.14);
+  }
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--space);
+    color:var(--paper);
+    font-family:"Inter",system-ui,sans-serif;
+    font-size:1.0625rem;
+    line-height:1.6;
+    display:flex;
+    justify-content:center;
+    padding:clamp(3.5rem, 14vh, 9rem) clamp(1.25rem, 6vw, 4rem) 5rem;
+  }
+  main{width:100%;max-width:40rem;display:flex;flex-direction:column;gap:clamp(4rem, 9vh, 6.5rem)}
+
+  a{color:var(--paper);text-decoration:none;border-bottom:1px solid rgba(243,229,209,.35);padding-bottom:1px}
+  a:hover{border-color:rgba(243,229,209,.75)}
+  a:focus-visible{outline:2px solid var(--horizon);outline-offset:3px}
+
+  .motif{display:block;margin-bottom:1.4rem}
+  h1{
+    font-family:"Newsreader",Georgia,serif;
+    font-weight:400;
+    font-size:clamp(2.6rem, 8vw, 4rem);
+    line-height:.98;
+    letter-spacing:-.025em;
+    margin-bottom:1.2rem;
+  }
+  .lede{
+    font-size:clamp(1.1rem, 2.4vw, 1.25rem);
+    line-height:1.55;
+    color:rgba(243,229,209,.85);
+    max-width:34ch;
+    text-wrap:pretty;
+  }
+
+  h2{
+    font-family:"Newsreader",Georgia,serif;
+    font-weight:500;
+    font-size:clamp(1.5rem, 3.4vw, 1.9rem);
+    letter-spacing:-.02em;
+    line-height:1.1;
+    margin-bottom:1.1rem;
+  }
+  /* A section opens at its horizon: one fine rule, a mono coordinate label
+     above it. */
+  section{position:relative;border-top:1px solid var(--border);padding-top:2.6rem}
+  .coord{
+    position:absolute;
+    top:-.6em;left:0;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.72rem;
+    font-weight:500;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--mist);
+    background:var(--space);
+    padding-right:.75rem;
+  }
+  p+p{margin-top:1rem}
+  section p{color:rgba(243,229,209,.85);text-wrap:pretty}
+  section strong{color:var(--paper);font-weight:500}
+
+  /* The instrument list: mono labels down the left, plain sentences right. */
+  dl{display:grid;grid-template-columns:minmax(7.5rem,auto) 1fr;gap:1.1rem 1.5rem;margin-top:1.6rem}
+  dt{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.72rem;
+    font-weight:500;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--mist);
+    padding-top:.3em;
+  }
+  dd{color:rgba(243,229,209,.85);font-size:.98rem;text-wrap:pretty}
+  @media (max-width:34rem){
+    dl{grid-template-columns:1fr;gap:.2rem}
+    dt{padding-top:1rem}
+  }
+
+  pre{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.85rem;
+    line-height:1.7;
+    color:var(--paper);
+    background:rgba(243,229,209,.045);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:1.1rem 1.25rem;
+    overflow-x:auto;
+    margin:1.5rem 0;
+  }
+  pre .c{color:var(--mist)}
+
+  .aside{
+    border-left:2px solid rgba(229,159,103,.55);
+    padding-left:1.1rem;
+    margin-top:1.6rem;
+  }
+  .aside p{font-size:.98rem}
+
+  /* Docs: quiet rows, dotted survey lines, like the status page. */
+  .docs{list-style:none;margin-top:.4rem}
+  .docs li{display:flex;align-items:baseline;gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border)}
+  .docs li:last-child{border-bottom:0}
+  .docs a{font-weight:500;font-size:.98rem;white-space:nowrap}
+  .docs .line{flex:1;border-bottom:1px dotted rgba(243,229,209,.18);transform:translateY(-.3em)}
+  .docs .what{font-size:.85rem;color:var(--mist);text-align:right}
+  @media (max-width:34rem){
+    .docs .what{display:none}
+  }
+
+  .cta{
+    display:inline-block;
+    font-weight:500;
+    font-size:.95rem;
+    color:var(--space);
+    background:var(--horizon);
+    border:1px solid var(--horizon);
+    border-radius:4px;
+    padding:.6rem 1.2rem;
+    margin-top:1.6rem;
+  }
+  .cta:hover{background:#eeb183;border-color:#eeb183}
+  .cta:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
+
+  footer{
+    border-top:1px solid var(--border);
+    padding-top:1.4rem;
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.6rem 1rem;
+  }
+  .foot-note{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--mist);white-space:nowrap;
+  }
+  footer a{white-space:nowrap;font-size:.9rem;font-weight:500}
+</style>
 </head>
 <body>
-    <main>
-        <div class="horizon"></div>
-        <div class="signal"><i></i></div>
-        <div class="status">online</div>
-        <div class="meta">farfield os</div>
-    </main>
+<main>
+  <header>
+    <svg class="motif" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
+      <circle cx="14" cy="14" r="11" fill="none" stroke="#f3e5d1" stroke-width="1" opacity=".5"/>
+      <circle cx="14" cy="14" r="2.5" fill="#e59f67"/>
+    </svg>
+    <h1>Farfield&nbsp;OS</h1>
+    <p class="lede">An opinionated home-server bootstrap for Arch Linux. One script, one small computer, managed over SSH.</p>
+  </header>
+
+  <section>
+    <span class="coord">What this is</span>
+    <p>This is the operating layer of my home server — the machine that runs everything else at <a href="https://farfield.systems/">farfield.systems</a>. One setup script takes a fresh Arch install and turns it into a server I never plug a keyboard into: a hardened shell, every language runtime I use, and an ingress stack that decides, deliberately, what the outside world can see.</p>
+    <p>Most days I don't administer it at all. Claude Code lives on the box with a map of the system, so managing the server is usually a conversation over SSH. When something needs a human, the shell is sharp and the dashboard is one command away.</p>
+    <p>Nothing here is exotic. It's ordinary tools, chosen once, wired together so I can stop thinking about them.</p>
+  </section>
+
+  <section>
+    <span class="coord">What's inside</span>
+    <dl>
+      <dt>Ingress</dt>
+      <dd>Tailscale for private access, Caddy for HTTPS and routing, a Cloudflare Tunnel for the few things that are deliberately public. No open ports on the router. Adding a site is one command: <code>add-site</code>, <code>add-public-site</code>, or <code>add-preview-site</code>.</dd>
+      <dt>Shell</dt>
+      <dd>Zsh with the Spaceship prompt, tmux by default, and the small sharp tools — ripgrep, fzf, eza, zoxide, bat. SSH in and it already feels lived-in.</dd>
+      <dt>Dashboard</dt>
+      <dd>If a display is attached, the box becomes a status board: six live panels — CPU, memory, network, disk, containers, operations — with touch. Headless, <code>ff-dashboard</code> draws the same board in tmux over SSH.</dd>
+      <dt>Runtimes</dt>
+      <dd>Node, Python (uv), Ruby, Rust, Go, Java, Docker, PostgreSQL, Valkey. Whatever the next project needs is already there.</dd>
+      <dt>Snapshots</dt>
+      <dd>Btrfs and Snapper photograph the system before and after every package transaction. A bad update is a reboot into yesterday, not an evening of repair.</dd>
+      <dt>Security</dt>
+      <dd>UFW, Fail2ban, hardened SSH. The public surface is opt-in, one hostname at a time.</dd>
+      <dt>Agent</dt>
+      <dd>Claude Code installed on the host with system context in <code>~/CLAUDE.md</code>. The box is built to be worked on by an agent as much as by me.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <span class="coord">Run it</span>
+    <p>You can run this. It's MIT, and the script doesn't know it's mine.</p>
+    <p>But be clear about what you're getting: <strong>every default is a decision I made for my own house.</strong> The prompt, the keybindings, what gets installed, what stays off — none of it will ask for your opinion. There is no configuration wizard, and there won't be one. If your decisions differ, fork it and make them yours. That's the intended path, not a workaround.</p>
+    <p>You'll need a machine with a fresh <a href="https://wiki.archlinux.org/title/Installation_guide">Arch Linux</a> install, a non-root user with sudo, and SSH access. Public sites additionally want a domain on Cloudflare; private access wants a free Tailscale account.</p>
+<pre><code>git clone https://github.com/iammatthias/farfield-os.git
+cd farfield-os
+sudo ./scripts/setup.sh
+sudo reboot
+<span class="c"># after reboot, ff-bootstrap walks the one-time
+# steps: tailscale auth, agent login. then: tmux</span></code></pre>
+    <div class="aside">
+      <p>There's an uninstall script, and it leaves backups. But the honest advice is to read <code>setup.sh</code> before you run it — it's a personal bootstrap, not a product, and reading it is the fastest way to know whether you want it.</p>
+    </div>
+    <a class="cta" href="https://github.com/iammatthias/farfield-os">Read the source&nbsp;&rarr;</a>
+  </section>
+
+  <section>
+    <span class="coord">Docs</span>
+    <ul class="docs">
+      <li><a href="https://github.com/iammatthias/farfield-os#readme">README</a><span class="line" aria-hidden="true"></span><span class="what">the full tour</span></li>
+      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/helpers.md">Helpers</a><span class="line" aria-hidden="true"></span><span class="what">every alias and function</span></li>
+      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/configuration.md">Configuration</a><span class="line" aria-hidden="true"></span><span class="what">what lives where</span></li>
+      <li><a href="https://github.com/iammatthias/farfield-os/blob/main/docs/troubleshooting.md">Troubleshooting</a><span class="line" aria-hidden="true"></span><span class="what">when it doesn't</span></li>
+      <li><a href="https://farfield.systems/docs/">Fleet docs</a><span class="line" aria-hidden="true"></span><span class="what">the services this box hosts</span></li>
+      <li><a href="https://farfield.systems/status">Status</a><span class="line" aria-hidden="true"></span><span class="what">is it up right now</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <a href="https://farfield.systems/">&larr; farfield.systems</a>
+    <span class="foot-note">MIT · runs my house</span>
+  </footer>
+</main>
 </body>
 </html>
