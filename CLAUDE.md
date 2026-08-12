@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-GNAR is an opinionated home-server bootstrap for Arch Linux. One script
-provisions a headless Arch box for remote development over SSH: enhanced
+farfield os is an opinionated home-server bootstrap for Arch Linux. One
+script provisions an Arch box for remote development over SSH: enhanced
 zsh, tmux, Docker, PostgreSQL + Valkey, a broad set of language runtimes
 (Node, Python via uv, Ruby, Rust, Go, Java), plus a docker-compose stack
 under /srv/stack for the network-ingress layer (Tailscale, Caddy,
@@ -13,10 +13,10 @@ Cloudflare Tunnel). Day-to-day management is Claude Code over SSH.
 
 It also installs sway (Wayland compositor) + foot so an optional attached
 display becomes a live kiosk dashboard (auto-login on tty1 → sway → six
-`gnar-board <panel>` foot tiles arranged 3×2 by `gnar-kiosk-tiles`;
-`bin/gnar-dashboard` runs the same board as a single tmux view for ssh
+`ff-board <panel>` foot tiles arranged 3×2 by `ff-kiosk-tiles`;
+`bin/ff-dashboard` runs the same board as a single tmux view for ssh
 sessions). The DRM-status guard in `~/.zprofile` is a no-op on truly
-headless boxes. sway is used (not a minimal dwl-style WM like mango) because
+headless boxes. sway is used (not a minimal dwl-style WM) because
 it exposes `wl_touch` — the rack touch panel's tap interactions
 (tap a tile → fullscreen; action buttons in the fullscreen OPS view) only
 work under a compositor that delivers touch to clients.
@@ -27,16 +27,16 @@ The network ingress layer is a docker-compose stack — atomically updatable
 via `git pull && docker compose up -d --build` and isolated from the host
 substrate.
 
-- `gnar-tailscale` (image: `tailscale/tailscale`) — tailnet identity. Other
+- `ff-tailscale` (image: `tailscale/tailscale`) — tailnet identity. Other
   services share its network namespace (`network_mode: service:tailscale`)
   so they reach the tailnet directly + can talk to one another on
   `localhost`.
-- `gnar-caddy` (image: built from `stack/caddy/Dockerfile`, adds the
+- `ff-caddy` (image: built from `stack/caddy/Dockerfile`, adds the
   Cloudflare DNS module) — reverse proxy. Caddyfile lives at
   `/srv/stack/Caddyfile`, mounted into the container.
   `add-site`/`remove-site` shell helpers edit it and reload via
   `docker compose exec`.
-- `gnar-cloudflared` (image: `cloudflare/cloudflared`) — Cloudflare Tunnel
+- `ff-cloudflared` (image: `cloudflare/cloudflared`) — Cloudflare Tunnel
   connector for opt-in public sites (`add-public-site`).
 
 State on host:
@@ -54,7 +54,7 @@ high-churn database/container files.
 
 The AI surface is **Claude Code on the host** (`claude`, installed
 npm-global): ssh in and run `claude` to manage the box or work on
-projects. Auth (subscription OAuth) is interactive — `gnar-bootstrap`
+projects. Auth (subscription OAuth) is interactive — `ff-bootstrap`
 walks it once post-install.
 
 It is intentionally heavy — this is a personal home-server bootstrap, not a
@@ -63,7 +63,7 @@ It is intentionally heavy — this is a personal home-server bootstrap, not a
 ## Repository Structure
 
 ```
-gnar/
+farfield-os/
 ├── README.md
 ├── LICENSE
 ├── CLAUDE.md
@@ -74,17 +74,17 @@ gnar/
 ├── configs/              # Files installed verbatim by setup.sh
 │   ├── zshrc, tmux.conf, foot.ini, sway-config, zprofile, btop.conf
 │   ├── fastfetch.jsonc, fail2ban-jail.local, getty-autologin.conf
-│   ├── gnar-stack.service, gnar-docker-prune.{service,timer}
-│   ├── journald-gnar.conf, tmpfiles-gnar.conf, udev-rapl.rules
+│   ├── ff-stack.service, ff-docker-prune.{service,timer}
+│   ├── journald-farfield.conf, tmpfiles-farfield.conf, udev-rapl.rules
 │   └── server-CLAUDE.md             # installed to ~/CLAUDE.md (system context for Claude Code)
-├── bin/                  # ~20 gnar-* helpers installed to /usr/local/bin
-│   └── gnar-{info,update,help,deploy,dashboard,bootstrap,display,
-│         kiosk-*,*-board,*-status,project-init,preview-site,claude-stats}
-├── board/                # gnar-board — fullscreen ratatui kiosk TUI
+├── bin/                  # ~20 ff-* helpers installed to /usr/local/bin
+│   └── ff-{info,update,help,deploy,dashboard,bootstrap,display,
+│         kiosk-*,*-board,*-status,project-init,claude-stats}
+├── board/                # ff-board — fullscreen ratatui kiosk TUI
 │   ├── Cargo.toml        #   (built by setup.sh; host + container graphs)
 │   └── src/main.rs
 ├── stack/                # /srv/stack boilerplate (compose, Caddyfile,
-│   └── ...               #   caddy Dockerfile, homepage, preview-site)
+│   └── ...               #   caddy Dockerfile, homepage, preview-https)
 └── docs/
     ├── configuration.md
     ├── helpers.md
@@ -97,26 +97,27 @@ gnar/
 
 ```bash
 sudo ./scripts/setup.sh        # Bootstrap a fresh Arch system
-gnar-update                    # Pacman -Syu + cache clean
+ff-update                      # pacman -Syu + cache clean (--yes: unattended)
 sudo ./scripts/uninstall.sh    # Revert configuration (with backups)
 ```
 
 ### Post-install reference
 
 ```bash
-gnar-info     # fastfetch report (TR-100 style)
-gnar-help     # Full command reference
+ff-info     # fastfetch report (TR-100 style)
+ff-help     # Full command reference
 ```
 
 ## Architecture
 
 ### setup.sh — three phases
 
-1. **System packages** via `pacman -S`: shells/editors, Caddy, Docker, runtimes,
-   databases, security tooling, modern CLI replacements.
+1. **System packages** via `pacman -S`: shells/editors, Docker, runtimes,
+   databases, security tooling, modern CLI replacements. (Caddy is NOT a host
+   package — it lives in the /srv/stack compose stack.)
 2. **System configuration**: install configs from `configs/` to their canonical
    locations, configure UFW + fail2ban + SSH hardening, init Postgres cluster,
-   enable systemd units (Caddy, Docker, Postgres, Valkey).
+   enable systemd units (ff-stack, Docker, Postgres, Valkey).
 3. **Per-user tooling** (run as `$REAL_USER` via `sudo -u`): Oh My Zsh, plugins,
    Spaceship prompt, npm globals (yarn/pnpm/pm2/eslint/prettier/jest +
    `@anthropic-ai/claude-code`), Bun, `uv tool install` (ruff/pytest/black),
@@ -127,9 +128,9 @@ all per-user work runs through `sudo -u "$REAL_USER"`.
 
 ### Helper scripts (`/usr/local/bin/`)
 
-- `gnar-info`  — wraps `fastfetch` with the GNAR config
-- `gnar-update`— `pacman -Syu` + cache clean
-- `gnar-help`  — printed reference of installed aliases / functions
+- `ff-info`  — `exec fastfetch` (uses the installed `~/.config/fastfetch/config.jsonc`)
+- `ff-update`— `pacman -Syu` + cache clean
+- `ff-help`  — printed reference of installed aliases / functions
 
 ### Generated user files
 
@@ -155,7 +156,7 @@ all per-user work runs through `sudo -u "$REAL_USER"`.
 - To change shell behavior, edit `configs/zshrc` and re-run setup, or just
   copy it onto `~/.zshrc` (it overrides existing).
 - To add a Caddy site at runtime, use the `add-site` shell function from
-  `configs/zshrc`; don't hand-edit `/etc/caddy/Caddyfile`.
+  `configs/zshrc`; don't hand-edit `/srv/stack/Caddyfile`.
 - To change the package set, edit the two `pacman -S` blocks at the top of
   `scripts/setup.sh`.
 

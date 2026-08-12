@@ -1,14 +1,16 @@
-# GNAR — sway config for the rack touch-panel kiosk.
+# farfield os — sway config for the rack touch-panel kiosk.
 #
 # Replaces mango: sway exposes wl_touch, so foot turns a tap into a click and
-# gnar-board's on-screen buttons + tap-to-fullscreen work; it also hides the
+# ff-board's on-screen buttons + tap-to-fullscreen work; it also hides the
 # cursor for touch. Launched by ~/.zprofile on tty1 when a display is
 # attached. The six dashboard panels are tiled into a 3x2 grid by
-# gnar-kiosk-tiles (sway has no auto-grid layout).
+# ff-kiosk-tiles (sway has no auto-grid layout).
 
-### appearance — Tokyo Night; a thin 2px border + gaps is the only chrome
-### (gnar-board renders its panels borderless, edge-to-edge).
-output * bg #000000 solid_color
+### appearance — farfield (docs/BRAND.md): Deep Space field, hairline
+### borders, Horizon orange only on the focused tile — the signal. A thin
+### 2px border + gaps is the only chrome (the board renders its panels
+### borderless, edge-to-edge).
+output * bg #0e222d solid_color
 default_orientation horizontal
 default_border pixel 2
 default_floating_border pixel 2
@@ -17,26 +19,26 @@ gaps inner 6
 gaps outer 8
 smart_gaps off
 #                        border  bg      text    indicator child_border
-client.focused          #7dcfff #000000 #c0caf5 #7dcfff #3b4261
-client.focused_inactive #3b4261 #000000 #565f89 #3b4261 #3b4261
-client.unfocused        #3b4261 #000000 #565f89 #3b4261 #3b4261
+client.focused          #e59f67 #0e222d #f3e5d1 #e59f67 #e59f67
+client.focused_inactive #2e3d44 #0e222d #6a8699 #2e3d44 #2e3d44
+client.unfocused        #2e3d44 #0e222d #6a8699 #2e3d44 #2e3d44
 
 ### input — hide the cursor shortly after it stops moving (touch panel).
 seat * hide_cursor 1500
 
 ### dashboard tiles
-for_window [app_id="gnar-.*"] border pixel 2
-exec gnar-kiosk-tiles
+for_window [app_id="ff-.*"] border pixel 2
+exec ff-kiosk-tiles
 
 ### presence-based display power (burn-in guard) — the poll daemon is the
 ### sleep authority + fallback wake; the UDP listener is the instant wake
 ### path (CV box pushes on person enter/exit). Both fail-open (any failure
-### = display on), tap always wakes. Manual: gnar-display on|auto|off|status.
+### = display on), tap always wakes. Manual: ff-display on|auto|off|status.
 ### NB: quoted — unquoted `;` would be parsed as a sway command separator.
 ### Wrappers die with their session ([ -S $SWAYSOCK ]) so restarts don't
 ### accumulate orphaned respawn loops.
-exec 'while [ -S "$SWAYSOCK" ]; do gnar-kiosk-presence; sleep 5; done'
-exec 'while [ -S "$SWAYSOCK" ]; do gnar-kiosk-wake-listener; sleep 5; done'
+exec 'while [ -S "$SWAYSOCK" ]; do ff-kiosk-presence; sleep 5; done'
+exec 'while [ -S "$SWAYSOCK" ]; do ff-kiosk-wake-listener; sleep 5; done'
 
 ### walk-up keybindings (only matter with a keyboard plugged in)
 bindsym Mod4+f fullscreen toggle

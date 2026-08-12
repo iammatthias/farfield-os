@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# GNAR - Home Server Bootstrap for Arch
+# farfield os - Home Server Bootstrap for Arch
 # Spaceship + Zsh + Tmux + Caddy + runtimes
 #
 
@@ -33,14 +33,14 @@ FAILED_SERVICES=()
 # Only created on first run — re-running setup mustn't clobber the original snapshot.
 snapshot() {
     local f=$1
-    [ -f "$f" ] && [ ! -f "$f.gnar-orig" ] && cp -a "$f" "$f.gnar-orig" || true
+    [ -f "$f" ] && [ ! -f "$f.ff-orig" ] && cp -a "$f" "$f.ff-orig" || true
 }
 snapshot /etc/locale.gen
 snapshot /etc/locale.conf
 snapshot /etc/ssh/sshd_config
 snapshot /etc/docker/daemon.json
 
-echo -e "${GREEN}GNAR - Home Server Bootstrap${NC}"
+echo -e "${GREEN}farfield os - Home Server Bootstrap${NC}"
 echo
 
 # On cloud images, first-boot cloud-init may still be running pacman in the
@@ -90,18 +90,21 @@ pacman -S --noconfirm --needed \
   ghostty-terminfo \
   eza bat fd fzf zoxide ripgrep jq yq \
   fastfetch htop btop iotop nethogs lsof ncdu \
-  tree bc rsync rclone p7zip imagemagick httpie \
-  net-tools openssh ufw fail2ban nmap tcpdump wireshark-cli \
+  tree bc rsync rclone 7zip imagemagick httpie \
+  net-tools openssh mosh speedtest-cli ufw fail2ban nmap tcpdump wireshark-cli \
   postgresql valkey sqlite smartmontools pacman-contrib arch-audit
 
 echo -e "${GREEN}Installing display stack (sway kiosk dashboard)...${NC}"
 # Wayland compositor + terminal + fonts for the optional attached-display
 # dashboard. sway is used (not a minimal dwl fork) because it exposes
 # wl_touch — required for the rack touch panel's tap interactions. Fonts:
-# JetBrainsMono Nerd has the box-drawing + icon glyphs that btop, tmux, and
-# the spaceship zsh prompt rely on.
-pacman -S --noconfirm --needed sway foot \
-    ttf-jetbrains-mono-nerd ttf-firacode-nerd \
+# IBM Plex Mono is the brand's technical voice (foot.ini leads with it);
+# JetBrainsMono Nerd supplies the box-drawing + icon + braille glyphs that
+# btop, tmux, and the spaceship zsh prompt rely on; noto covers unicode
+# fallback so foreign glyphs render instead of tofu. grim backs
+# ff-kiosk-shot screenshots.
+pacman -S --noconfirm --needed sway foot grim \
+    ttf-ibm-plex ttf-jetbrains-mono-nerd \
     noto-fonts noto-fonts-emoji
 
 # Re-run locale-gen post-install. pacman -Syu earlier may have replaced
@@ -195,9 +198,9 @@ fi
 echo -e "${GREEN}Configuring zsh...${NC}"
 
 # Back up an existing .zshrc, but only if it differs from what we're about
-# to install — re-runs shouldn't spam identical .gnar-backup files.
+# to install — re-runs shouldn't spam identical .ff-backup files.
 if [[ -f "$REAL_HOME/.zshrc" ]] && ! cmp -s "$CONFIGS/zshrc" "$REAL_HOME/.zshrc"; then
-    cp "$REAL_HOME/.zshrc" "$REAL_HOME/.zshrc.gnar-backup.$(date +%Y%m%d_%H%M%S)" || true
+    cp "$REAL_HOME/.zshrc" "$REAL_HOME/.zshrc.ff-backup.$(date +%Y%m%d_%H%M%S)" || true
 fi
 
 # Tolerate network flakes (same policy as the per-user tooling heredoc
@@ -219,8 +222,7 @@ for plugin_repo in \
     "zsh-users/zsh-autosuggestions" \
     "zsh-users/zsh-syntax-highlighting" \
     "zsh-users/zsh-completions" \
-    "zsh-users/zsh-history-substring-search" \
-    "agkozak/zsh-z"; do
+    "zsh-users/zsh-history-substring-search"; do
     name=\$(basename "\$plugin_repo")
     [ ! -d "\$ZSH_CUSTOM/plugins/\$name" ] && \
         git clone "https://github.com/\$plugin_repo" "\$ZSH_CUSTOM/plugins/\$name"
@@ -298,7 +300,7 @@ for _port in $SSH_PORTS; do
 done
 ufw allow 80/tcp || true
 ufw allow 443/tcp || true
-# Kiosk wake push — LAN UDP nudge from the CV box (gnar-kiosk-wake-listener).
+# Kiosk wake push — LAN UDP nudge from the CV box (ff-kiosk-wake-listener).
 # Worst a spoofed datagram can do is turn the display on.
 ufw allow 8666/udp || true
 # Containers must reach host-native services (the caddy container proxies
@@ -328,14 +330,14 @@ install -d /etc/ssh/sshd_config.d
 grep -q '^Include /etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config 2>/dev/null || \
     sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' /etc/ssh/sshd_config
 {
-    echo "# GNAR SSH hardening — first-match-wins, keep this file 00-first."
+    echo "# farfield os SSH hardening — first-match-wins, keep this file 00-first."
     echo "PermitRootLogin no"
     echo "PubkeyAuthentication yes"
     # Only disable password auth if the user has authorized keys.
     if [ -s "$REAL_HOME/.ssh/authorized_keys" ]; then
         echo "PasswordAuthentication no"
     fi
-} > /etc/ssh/sshd_config.d/00-gnar.conf
+} > /etc/ssh/sshd_config.d/00-farfield.conf
 if [ -s "$REAL_HOME/.ssh/authorized_keys" ]; then
     echo "SSH password auth disabled (authorized_keys present)"
 else
@@ -344,8 +346,8 @@ else
 fi
 # Never reload into a broken config — that's how you lose the box.
 if ! sshd -t 2>/dev/null; then
-    echo -e "${RED}sshd config validation failed — removing GNAR drop-in${NC}"
-    rm -f /etc/ssh/sshd_config.d/00-gnar.conf
+    echo -e "${RED}sshd config validation failed — removing farfield os drop-in${NC}"
+    rm -f /etc/ssh/sshd_config.d/00-farfield.conf
 fi
 # Reload — not restart — so the connection running this script doesn't get dropped.
 # sshd re-reads its config on SIGHUP; no need to bounce the daemon.
@@ -382,26 +384,26 @@ if ! systemctl start valkey; then
     FAILED_SERVICES+=("valkey")
 fi
 
-# tmpfiles rules (RAPL counters readable for gnar-board power display).
-install -m 644 "$CONFIGS/tmpfiles-gnar.conf" /etc/tmpfiles.d/gnar.conf
-systemd-tmpfiles --create /etc/tmpfiles.d/gnar.conf 2>/dev/null || true
+# tmpfiles rules (RAPL counters readable for ff-board power display).
+install -m 644 "$CONFIGS/tmpfiles-farfield.conf" /etc/tmpfiles.d/farfield.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/farfield.conf 2>/dev/null || true
 
 # RAPL perms, deterministically: at boot the tmpfiles pass races the
-# intel_rapl module load, and when it loses gnar-board's wattage silently
+# intel_rapl module load, and when it loses ff-board's wattage silently
 # disappears. A udev rule fires when the powercap device appears; the
 # tmpfiles rule above remains as a fallback for the already-booted case.
-install -m 644 "$CONFIGS/udev-rapl.rules" /etc/udev/rules.d/99-gnar-rapl.rules
+install -m 644 "$CONFIGS/udev-rapl.rules" /etc/udev/rules.d/99-farfield-rapl.rules
 udevadm control --reload-rules 2>/dev/null || true
 
 # Cap the persistent journal — unbounded, it quietly eats gigabytes.
 install -d /etc/systemd/journald.conf.d
-install -m 644 "$CONFIGS/journald-gnar.conf" /etc/systemd/journald.conf.d/gnar.conf
+install -m 644 "$CONFIGS/journald-farfield.conf" /etc/systemd/journald.conf.d/farfield.conf
 systemctl restart systemd-journald 2>/dev/null || true
 
 # Single-uplink box (often wifi): wait-online should be satisfied by ANY
 # online interface, or an unplugged ethernet port fails the unit every boot.
 install -d /etc/systemd/system/systemd-networkd-wait-online.service.d
-cat > /etc/systemd/system/systemd-networkd-wait-online.service.d/gnar-any.conf <<'EOF'
+cat > /etc/systemd/system/systemd-networkd-wait-online.service.d/ff-any.conf <<'EOF'
 [Service]
 ExecStart=
 ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any
@@ -409,7 +411,7 @@ EOF
 
 # Passwordless sudo for the user. The box is managed non-interactively —
 # Claude Code over SSH, the kiosk's touch action buttons (update / reboot /
-# prune run `sudo -n`), and gnar-board's samplers (journalctl, smartctl,
+# prune run `sudo -n`), and ff-board's samplers (journalctl, smartctl,
 # fail2ban-client) — none of which can answer a password prompt. The auth
 # surface for "root-on-this-box" is already the user's SSH key (a compromise
 # implies full host access), so this doesn't materially widen the threat
@@ -418,7 +420,7 @@ EOF
 # This must happen BEFORE the yay build below: makepkg runs `sudo pacman -U`
 # as $REAL_USER, whose sudo timestamp expired long ago behind pacman -Syu —
 # without the grant, the "unattended" bootstrap hangs on a password prompt.
-SUDOERS_FILE=/etc/sudoers.d/gnar-${REAL_USER}-nopasswd
+SUDOERS_FILE=/etc/sudoers.d/ff-${REAL_USER}-nopasswd
 echo "$REAL_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_FILE"
 chmod 440 "$SUDOERS_FILE"
 # Validate only the file we wrote — `visudo -c` checks ALL sudoers files,
@@ -502,20 +504,20 @@ EOF
 fi
 
 # systemd unit that runs `docker compose up -d --build` at boot.
-install -m 644 "$CONFIGS/gnar-stack.service" /etc/systemd/system/gnar-stack.service
+install -m 644 "$CONFIGS/ff-stack.service" /etc/systemd/system/ff-stack.service
 
 # Weekly prune of dangling images + old stopped containers — every
 # `--build` strands the previous image as untagged layers, which
 # otherwise accumulate unbounded.
-install -m 644 "$CONFIGS/gnar-docker-prune.service" /etc/systemd/system/gnar-docker-prune.service
-install -m 644 "$CONFIGS/gnar-docker-prune.timer" /etc/systemd/system/gnar-docker-prune.timer
+install -m 644 "$CONFIGS/ff-docker-prune.service" /etc/systemd/system/ff-docker-prune.service
+install -m 644 "$CONFIGS/ff-docker-prune.timer" /etc/systemd/system/ff-docker-prune.timer
 
 # (The passwordless-sudo grant moved up before the yay build, which
 # needs it — see the AUR helper section.)
 
 systemctl daemon-reload
-systemctl enable gnar-stack.service
-systemctl enable --now gnar-docker-prune.timer
+systemctl enable ff-stack.service
+systemctl enable --now ff-docker-prune.timer
 
 # -----------------------------------------------------------------------------
 # Per-user runtime tooling
@@ -561,43 +563,50 @@ EOF
 # Helper scripts
 # -----------------------------------------------------------------------------
 echo -e "${GREEN}Installing helper scripts...${NC}"
-install -m 755 "$BIN/gnar-info"             /usr/local/bin/gnar-info
-install -m 755 "$BIN/gnar-update"           /usr/local/bin/gnar-update
-install -m 755 "$BIN/gnar-help"             /usr/local/bin/gnar-help
-install -m 755 "$BIN/gnar-dashboard"        /usr/local/bin/gnar-dashboard
-install -m 755 "$BIN/gnar-services-status"  /usr/local/bin/gnar-services-status
-install -m 755 "$BIN/gnar-docker-status"    /usr/local/bin/gnar-docker-status
-install -m 755 "$BIN/gnar-status-board"     /usr/local/bin/gnar-status-board
-install -m 755 "$BIN/gnar-metrics-board"    /usr/local/bin/gnar-metrics-board
-install -m 755 "$BIN/gnar-kiosk-tiles"      /usr/local/bin/gnar-kiosk-tiles
-install -m 755 "$BIN/gnar-kiosk-restart"    /usr/local/bin/gnar-kiosk-restart
-install -m 755 "$BIN/gnar-kiosk-shot"       /usr/local/bin/gnar-kiosk-shot
-install -m 755 "$BIN/gnar-kiosk-presence"   /usr/local/bin/gnar-kiosk-presence
-install -m 755 "$BIN/gnar-kiosk-wake-listener" /usr/local/bin/gnar-kiosk-wake-listener
-install -m 755 "$BIN/gnar-display"          /usr/local/bin/gnar-display
-install -m 755 "$BIN/gnar-claude-stats"     /usr/local/bin/gnar-claude-stats
-install -m 755 "$BIN/gnar-project-init"     /usr/local/bin/gnar-project-init
-install -m 755 "$BIN/gnar-bootstrap"        /usr/local/bin/gnar-bootstrap
-install -m 755 "$BIN/gnar-preview-site"     /usr/local/bin/gnar-preview-site
-install -m 755 "$BIN/gnar-deploy"           /usr/local/bin/gnar-deploy
+install -m 755 "$BIN/ff-info"             /usr/local/bin/ff-info
+install -m 755 "$BIN/ff-update"           /usr/local/bin/ff-update
+install -m 755 "$BIN/ff-help"             /usr/local/bin/ff-help
+install -m 755 "$BIN/ff-dashboard"        /usr/local/bin/ff-dashboard
+install -m 755 "$BIN/ff-services-status"  /usr/local/bin/ff-services-status
+install -m 755 "$BIN/ff-docker-status"    /usr/local/bin/ff-docker-status
+install -m 755 "$BIN/ff-status-board"     /usr/local/bin/ff-status-board
+install -m 755 "$BIN/ff-metrics-board"    /usr/local/bin/ff-metrics-board
+install -m 755 "$BIN/ff-kiosk-tiles"      /usr/local/bin/ff-kiosk-tiles
+install -m 755 "$BIN/ff-kiosk-restart"    /usr/local/bin/ff-kiosk-restart
+install -m 755 "$BIN/ff-kiosk-shot"       /usr/local/bin/ff-kiosk-shot
+install -m 755 "$BIN/ff-kiosk-presence"   /usr/local/bin/ff-kiosk-presence
+install -m 755 "$BIN/ff-kiosk-wake-listener" /usr/local/bin/ff-kiosk-wake-listener
+install -m 755 "$BIN/ff-display"          /usr/local/bin/ff-display
+install -m 755 "$BIN/ff-claude-stats"     /usr/local/bin/ff-claude-stats
+install -m 755 "$BIN/ff-project-init"     /usr/local/bin/ff-project-init
+install -m 755 "$BIN/ff-bootstrap"        /usr/local/bin/ff-bootstrap
+install -m 755 "$BIN/ff-deploy"           /usr/local/bin/ff-deploy
+install -m 755 "$BIN/ff-migrate"          /usr/local/bin/ff-migrate
 
-# gnar-board — the ratatui kiosk TUI (flicker-free fullscreen board).
+# One-time migrations (migrations/*.sh, marker-tracked, idempotent) —
+# converges upgraded boxes with fresh installs.
+FF_REPO="$REPO_ROOT" bash "$BIN/ff-migrate" || \
+    echo -e "${YELLOW}migrations incomplete — re-run ff-migrate after fixing${NC}"
+
+# ff-board — the ratatui kiosk TUI (flicker-free fullscreen board).
 # Built from source as $REAL_USER (cargo via rustup, installed above).
-# Failure tolerated: gnar-dashboard falls back to btop + shell boards.
+# Failure tolerated: ff-dashboard falls back to btop + shell boards.
 if sudo -u "$REAL_USER" bash -c '. "$HOME/.cargo/env" 2>/dev/null; command -v cargo' &>/dev/null; then
-    echo -e "${GREEN}Building gnar-board (kiosk TUI)...${NC}"
+    echo -e "${GREEN}Building ff-board (kiosk TUI)...${NC}"
     if sudo -u "$REAL_USER" bash -c ". \"\$HOME/.cargo/env\" 2>/dev/null; cargo build --release --manifest-path '$REPO_ROOT/board/Cargo.toml'"; then
-        install -m 755 "$REPO_ROOT/board/target/release/gnar-board" /usr/local/bin/gnar-board
+        install -m 755 "$REPO_ROOT/board/target/release/ff-board" /usr/local/bin/ff-board
     else
-        echo -e "${YELLOW}gnar-board build failed — kiosk will use the shell boards${NC}"
+        echo -e "${YELLOW}ff-board build failed — kiosk will use the shell boards${NC}"
     fi
 else
-    echo -e "${YELLOW}cargo not found — skipping gnar-board build${NC}"
+    echo -e "${YELLOW}cargo not found — skipping ff-board build${NC}"
 fi
 
-# Default project root. Owned by the user so `gnar-project-init` doesn't
-# need sudo to create new projects under it.
+# Default project roots. /srv/projects is owned by the user so
+# `ff-project-init` doesn't need sudo; ~/projects is what ff-deploy,
+# create-react-hono, and the cd aliases assume exists.
 install -d -o "$REAL_USER" -g "$REAL_USER" /srv/projects
+install -d -o "$REAL_USER" -g "$REAL_USER" "$REAL_HOME/projects"
 
 # -----------------------------------------------------------------------------
 # Kiosk dashboard (sway on tty1 when a display is attached)
@@ -652,7 +661,7 @@ fi
 # -----------------------------------------------------------------------------
 echo
 echo -e "${GREEN}=== Service status ===${NC}"
-for svc in docker postgresql valkey fail2ban ufw gnar-stack; do
+for svc in docker postgresql valkey fail2ban ufw ff-stack; do
     if systemctl is-active --quiet "$svc"; then
         echo "  [+] $svc"
     else
@@ -673,11 +682,11 @@ echo "Next steps:"
 echo "  1. sudo reboot"
 echo "  2. ssh in, run: tmux"
 echo "  3. add-site myapp 3000   # reverse proxy a service"
-echo "  4. gnar-help             # full reference"
+echo "  4. ff-help             # full reference"
 echo
 echo "After this reboot, run:"
 echo
-echo "  gnar-bootstrap"
+echo "  ff-bootstrap"
 echo
 echo "It walks tailscale auth → claude login → optional gh + cloudflared."
 echo "Idempotent — re-run any time and it skips steps already done."

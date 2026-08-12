@@ -1,3 +1,0 @@
-#!/bin/bash
-# GNAR system information via fastfetch
-exec fastfetch

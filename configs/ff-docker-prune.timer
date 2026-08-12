@@ -1,5 +1,5 @@
 [Unit]
-Description=GNAR weekly Docker prune
+Description=farfield os weekly Docker prune
 
 [Timer]
 OnCalendar=weekly

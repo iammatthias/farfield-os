@@ -1,12 +1,12 @@
-# GNAR — installed to /etc/udev/rules.d/99-gnar-rapl.rules by setup.sh.
+# farfield os — installed to /etc/udev/rules.d/99-farfield-rapl.rules by setup.sh.
 #
 # Open the RAPL energy counters read-only the moment the powercap device
-# appears, so gnar-board can show live CPU package wattage without root.
+# appears, so ff-board can show live CPU package wattage without root.
 # (Counters default to 0400 — kernel hardening against power-analysis side
 # channels, not a concern on a single-tenant home server.)
 #
 # udev is the deterministic path: the boot-time systemd-tmpfiles pass races
 # the intel_rapl module load, and when it loses the wattage silently
-# disappears. /etc/tmpfiles.d/gnar.conf stays as a fallback for the
+# disappears. /etc/tmpfiles.d/farfield.conf stays as a fallback for the
 # already-booted case.
 SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", RUN+="/usr/bin/chmod 0444 /sys%p/energy_uj"

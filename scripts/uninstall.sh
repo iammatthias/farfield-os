@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# GNAR - Uninstall
+# farfield os - Uninstall
 # Reverts the configuration installed by setup.sh.
 # Does NOT remove pacman packages — keep or remove those manually.
 #
@@ -25,18 +25,18 @@ fi
 REAL_HOME="/home/$REAL_USER"
 TS=$(date +%Y%m%d_%H%M%S)
 
-# Restore a file from its setup-time .gnar-orig snapshot. The current state
-# is moved aside as .gnar-backup.<ts> so the user can audit the diff.
+# Restore a file from its setup-time .ff-orig snapshot. The current state
+# is moved aside as .ff-backup.<ts> so the user can audit the diff.
 restore_orig() {
     local f=$1
-    if [ -f "$f.gnar-orig" ]; then
-        [ -f "$f" ] && mv "$f" "$f.gnar-backup.$TS"
-        mv "$f.gnar-orig" "$f"
+    if [ -f "$f.ff-orig" ]; then
+        [ -f "$f" ] && mv "$f" "$f.ff-backup.$TS"
+        mv "$f.ff-orig" "$f"
         echo "Restored $f from setup-time snapshot"
     fi
 }
 
-echo -e "${YELLOW}Reverting GNAR configuration for $REAL_USER...${NC}"
+echo -e "${YELLOW}Reverting farfield os configuration for $REAL_USER...${NC}"
 echo
 
 # -----------------------------------------------------------------------------
@@ -51,26 +51,26 @@ fi
 
 # docker is disabled here too (setup.sh enabled it); the package remains —
 # the epilogue below already suggests removing it manually.
-for svc in gnar-stack gnar-docker-prune.timer fail2ban valkey postgresql ufw docker; do
+for svc in ff-stack ff-docker-prune.timer fail2ban valkey postgresql ufw docker; do
     systemctl is-active --quiet "$svc" && systemctl stop "$svc" || true
     systemctl is-enabled --quiet "$svc" 2>/dev/null && systemctl disable "$svc" || true
 done
 
-rm -f /etc/systemd/system/gnar-stack.service
-rm -f /etc/systemd/system/gnar-docker-prune.service /etc/systemd/system/gnar-docker-prune.timer
-rm -f /etc/tmpfiles.d/gnar.conf
-rm -f /etc/udev/rules.d/99-gnar-rapl.rules
-rm -f /etc/systemd/journald.conf.d/gnar.conf
+rm -f /etc/systemd/system/ff-stack.service
+rm -f /etc/systemd/system/ff-docker-prune.service /etc/systemd/system/ff-docker-prune.timer
+rm -f /etc/tmpfiles.d/farfield.conf
+rm -f /etc/udev/rules.d/99-farfield-rapl.rules
+rm -f /etc/systemd/journald.conf.d/farfield.conf
 
 # wait-online drop-in (setup.sh's --any override)
 if [ -d /etc/systemd/system/systemd-networkd-wait-online.service.d ]; then
-    rm -f /etc/systemd/system/systemd-networkd-wait-online.service.d/gnar-any.conf
+    rm -f /etc/systemd/system/systemd-networkd-wait-online.service.d/ff-any.conf
     rmdir --ignore-fail-on-non-empty /etc/systemd/system/systemd-networkd-wait-online.service.d
 fi
 
-# Docker daemon.json: restore the pre-GNAR original if we snapshotted one,
-# otherwise remove the file GNAR wrote.
-if [ -f /etc/docker/daemon.json.gnar-orig ]; then
+# Docker daemon.json: restore the pre-farfield os original if we snapshotted one,
+# otherwise remove the file farfield os wrote.
+if [ -f /etc/docker/daemon.json.ff-orig ]; then
     restore_orig /etc/docker/daemon.json
 else
     rm -f /etc/docker/daemon.json
@@ -87,9 +87,8 @@ fi
 echo -e "${YELLOW}Removing system config...${NC}"
 
 [ -f /etc/fail2ban/jail.local ] && \
-    mv /etc/fail2ban/jail.local "/etc/fail2ban/jail.local.gnar-backup.$TS"
+    mv /etc/fail2ban/jail.local "/etc/fail2ban/jail.local.ff-backup.$TS"
 
-[ -f /etc/logrotate.d/gnar ] && rm -f /etc/logrotate.d/gnar
 
 # tty1 auto-login drop-in
 if [ -d /etc/systemd/system/getty@tty1.service.d ]; then
@@ -108,12 +107,12 @@ for t in snapper-timeline.timer snapper-cleanup.timer; do
 done
 
 # Drop the agent-mode passwordless-sudo grant. Other sudoers config left alone.
-rm -f "/etc/sudoers.d/gnar-${REAL_USER}-nopasswd"
+rm -f "/etc/sudoers.d/ff-${REAL_USER}-nopasswd"
 
 # SSH hardening drop-in (newer installs) plus the legacy sed/snapshot
 # paths for boxes configured before the drop-in existed.
-rm -f /etc/ssh/sshd_config.d/00-gnar.conf
-if [ -f /etc/ssh/sshd_config.gnar-orig ]; then
+rm -f /etc/ssh/sshd_config.d/00-farfield.conf
+if [ -f /etc/ssh/sshd_config.ff-orig ]; then
     restore_orig /etc/ssh/sshd_config
 elif [ -f /etc/ssh/sshd_config ]; then
     sed -i 's/^PermitRootLogin no$/#PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
@@ -146,7 +145,7 @@ echo -e "${YELLOW}Removing user config from $REAL_HOME...${NC}"
 backup_and_remove() {
     local f=$1
     if [ -e "$f" ]; then
-        mv "$f" "${f}.gnar-backup.$TS"
+        mv "$f" "${f}.ff-backup.$TS"
     fi
 }
 
@@ -158,34 +157,38 @@ backup_and_remove "$REAL_HOME/.config/sway/config"
 backup_and_remove "$REAL_HOME/.config/foot/foot.ini"
 backup_and_remove "$REAL_HOME/.config/btop/btop.conf"
 
-# Only back up CLAUDE.md if it's the one GNAR installed (sentinel: first
-# line is "# GNAR Server"). Hand-written ones are left alone.
-if [ -f "$REAL_HOME/CLAUDE.md" ] && head -n1 "$REAL_HOME/CLAUDE.md" | grep -q "^# GNAR Server$"; then
-    mv "$REAL_HOME/CLAUDE.md" "$REAL_HOME/CLAUDE.md.gnar-backup.$TS"
+# Only back up CLAUDE.md if it's the one farfield os installed (sentinel: first
+# line is "# farfield os server" — or "# GNAR Server" from pre-rename
+# installs). Hand-written ones are left alone.
+if [ -f "$REAL_HOME/CLAUDE.md" ] && head -n1 "$REAL_HOME/CLAUDE.md" | grep -qE "^# (farfield os server|GNAR Server)$"; then
+    mv "$REAL_HOME/CLAUDE.md" "$REAL_HOME/CLAUDE.md.ff-backup.$TS"
 fi
 
 # Oh My Zsh + Spaceship + plugins
 sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.oh-my-zsh" || true
 
 # Helper scripts — everything setup.sh installs to /usr/local/bin.
-rm -f /usr/local/bin/gnar-info /usr/local/bin/gnar-update /usr/local/bin/gnar-help \
-      /usr/local/bin/gnar-dashboard /usr/local/bin/gnar-services-status \
-      /usr/local/bin/gnar-docker-status /usr/local/bin/gnar-status-board \
-      /usr/local/bin/gnar-metrics-board /usr/local/bin/gnar-kiosk-tiles \
-      /usr/local/bin/gnar-kiosk-restart /usr/local/bin/gnar-kiosk-shot \
-      /usr/local/bin/gnar-claude-stats /usr/local/bin/gnar-project-init \
-      /usr/local/bin/gnar-bootstrap /usr/local/bin/gnar-preview-site \
-      /usr/local/bin/gnar-deploy /usr/local/bin/gnar-board \
-      /usr/local/bin/gnar-kiosk-presence /usr/local/bin/gnar-display \
-      /usr/local/bin/gnar-kiosk-wake-listener \
-      /usr/local/bin/gnar-hermes-status
+rm -f /usr/local/bin/ff-info /usr/local/bin/ff-update /usr/local/bin/ff-help \
+      /usr/local/bin/ff-dashboard /usr/local/bin/ff-services-status \
+      /usr/local/bin/ff-docker-status /usr/local/bin/ff-status-board \
+      /usr/local/bin/ff-metrics-board /usr/local/bin/ff-kiosk-tiles \
+      /usr/local/bin/ff-kiosk-restart /usr/local/bin/ff-kiosk-shot \
+      /usr/local/bin/ff-claude-stats /usr/local/bin/ff-project-init \
+      /usr/local/bin/ff-bootstrap \
+      /usr/local/bin/ff-deploy /usr/local/bin/ff-board \
+      /usr/local/bin/ff-kiosk-presence /usr/local/bin/ff-display \
+      /usr/local/bin/ff-kiosk-wake-listener /usr/local/bin/ff-migrate
+
+# Migration markers (and the legacy gnar-deploy compat symlink, if present)
+rm -rf /var/lib/farfield
+rm -f /usr/local/bin/gnar-deploy
 
 echo
-echo -e "${GREEN}GNAR configuration removed.${NC}"
+echo -e "${GREEN}farfield os configuration removed.${NC}"
 echo
-echo "Backups: *.gnar-backup.$TS"
+echo "Backups: *.ff-backup.$TS"
 echo
-echo "Packages remain installed. To remove the GNAR package set:"
+echo "Packages remain installed. To remove the farfield os package set:"
 echo "  sudo pacman -Rns zsh tmux neovim docker docker-compose \\"
 echo "    nodejs npm python uv ruby go jdk-openjdk maven gradle \\"
 echo "    eza bat fd fzf zoxide ripgrep jq yq fastfetch htop btop \\"

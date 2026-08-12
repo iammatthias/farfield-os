@@ -1,4 +1,4 @@
-# GNAR — Caddy configuration. Three listeners:
+# farfield os — Caddy configuration. Three listeners:
 #
 #   :80   — PRIVATE HTTP. Reached over the tailnet (caddy lives in the
 #           tailscale container's netns). Internal services via add-site.
@@ -44,11 +44,11 @@
     }
 }
 
-# Shared JSON access log — every site imports this; gnar-board tails the
+# Shared JSON access log — every site imports this; ff-board tails the
 # file (host: /srv/stack/data/caddy/data/access/access.log) for per-site
 # request rates and status-code mixes on the kiosk. mode 644 so the
 # unprivileged board can read it.
-(gnar_access_log) {
+(ff_access_log) {
     log {
         output file /data/access/access.log {
             roll_size 20mb
@@ -66,7 +66,7 @@
 # Default site on :80 — any hostname pointing at the box that doesn't
 # match a more-specific block below gets the static "online" homepage.
 :80 {
-    import gnar_access_log
+    import ff_access_log
     root * /srv/homepage
     file_server
 }
@@ -94,7 +94,7 @@ import /etc/caddy/preview-{$PREVIEW_HTTPS:off}/*.caddy
 # =============================================================================
 
 http://:8080 {
-    import gnar_access_log
+    import ff_access_log
     respond 404
 }
 

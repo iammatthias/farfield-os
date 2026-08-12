@@ -1,21 +1,22 @@
 #!/bin/bash
-# GNAR — instant display wake on a UDP nudge from the CV box.
+# farfield os — instant display wake on a UDP nudge from the CV box.
 #
-# The computer-vision box fires a datagram ("gnar-wake enter person\n") the
+# The computer-vision box fires a datagram ("ff-wake enter person\n") the
 # moment a tracked person enters/exits the frame — sub-second wake instead
-# of waiting for gnar-kiosk-presence's next poll. This listener:
+# of waiting for ff-kiosk-presence's next poll. This listener:
 #   - powers the display on when a valid nudge arrives while it's off
 #   - touches $DIR/push, which the presence daemon folds into its
 #     last-seen time (so a walk-by between polls still counts as presence)
 #
 # Push is an ACCELERATOR, not the authority: if this listener (or the CV
 # push) breaks entirely, behavior degrades to the poll loop — never worse.
-# Datagrams must start with "gnar-wake"; anything else is ignored, and the
-# worst a spoofed packet can do is turn the display on.
+# Datagrams must start with "ff-wake" ("gnar-wake" is still accepted so
+# CV boxes flashed before the farfield rename keep working); anything else
+# is ignored, and the worst a spoofed packet can do is turn the display on.
 set -uo pipefail
 
 PORT=${WAKE_PORT:-8666}
-DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnar-display
+DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ff-display
 mkdir -p "$DIR"
 
 # Singleton per port; a stale twin from a dead sway session is killed off
@@ -33,12 +34,12 @@ while :; do
     # 5s read timeout so we notice a dead sway session even when quiet.
     if read -r -t 5 -u 3 line; then
         case "$line" in
-            gnar-wake*)
+            ff-wake*|gnar-wake*)
                 touch "$DIR/push"
                 if [ "$(cat "$DIR/state" 2>/dev/null)" = "off" ]; then
                     swaymsg "output * power on" >/dev/null 2>&1
                     echo on > "$DIR/state"
-                    logger -t gnar-display "display on — push ($line)"
+                    logger -t ff-display "display on — push ($line)"
                 fi
                 ;;
         esac
@@ -52,9 +53,9 @@ while :; do
             pkill -f "ncat -ulk $PORT" 2>/dev/null
             restarts=$((restarts + 1))
             if [ "$restarts" -le 5 ]; then
-                logger -t gnar-display "wake listener: ncat pipeline died (attempt $restarts) — restarting in 5s"
+                logger -t ff-display "wake listener: ncat pipeline died (attempt $restarts) — restarting in 5s"
             elif [ "$restarts" -eq 6 ]; then
-                logger -t gnar-display "wake listener: ncat keeps dying — retrying quietly (no further logs)"
+                logger -t ff-display "wake listener: ncat keeps dying — retrying quietly (no further logs)"
             fi
             sleep 5
             start_pipe

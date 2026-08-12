@@ -1,13 +1,13 @@
-# GNAR — prune Docker build leftovers. Repeated `docker compose up --build`
-# (gnar-stack at boot, gnar-deploy) strands the previous build as a
+# farfield os — prune Docker build leftovers. Repeated `docker compose up --build`
+# (ff-stack at boot, ff-deploy) strands the previous build as a
 # dangling image AND accumulates BuildKit build cache under
 # /var/lib/docker — the cache is the larger of the two and grows
 # unbounded without the builder prune. Dangling/stale-only: tagged
 # images, running containers, volumes, and cache younger than a week are
-# never touched. Triggered weekly by gnar-docker-prune.timer.
+# never touched. Triggered weekly by ff-docker-prune.timer.
 
 [Unit]
-Description=GNAR weekly Docker prune (dangling images, stopped containers, stale build cache)
+Description=farfield os weekly Docker prune (dangling images, stopped containers, stale build cache)
 Requires=docker.service
 After=docker.service
 

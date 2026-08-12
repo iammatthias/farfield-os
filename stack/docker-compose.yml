@@ -21,15 +21,15 @@ services:
     # Pinned to the version verified on this deployment. Bump
     # deliberately: edit the tag, `docker compose pull`, `up -d`.
     image: tailscale/tailscale:v1.96.5
-    container_name: gnar-tailscale
+    container_name: ff-tailscale
     logging: *default-logging
-    hostname: ${TS_HOSTNAME:-gnar}
+    hostname: ${TS_HOSTNAME:-farfield}
     environment:
       # Set in .env (copy from .env.example) for unattended bring-up:
       #   TS_AUTHKEY=tskey-auth-...
       # Or leave unset and run `docker compose exec tailscale tailscale up` once.
       TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_HOSTNAME: ${TS_HOSTNAME:-gnar}
+      TS_HOSTNAME: ${TS_HOSTNAME:-farfield}
       TS_STATE_DIR: /var/lib/tailscale
       TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---ssh}
     volumes:
@@ -66,8 +66,8 @@ services:
     build:
       context: ./caddy
       dockerfile: Dockerfile
-    image: gnar-caddy:latest
-    container_name: gnar-caddy
+    image: ff-caddy:latest
+    container_name: ff-caddy
     logging: *default-logging
     network_mode: service:tailscale
     depends_on:
@@ -119,7 +119,7 @@ services:
     # tag, then `docker compose pull cloudflared && docker compose up -d`.
     # 2026.3.0 is the version verified running on this deployment.
     image: cloudflare/cloudflared:2026.3.0
-    container_name: gnar-cloudflared
+    container_name: ff-cloudflared
     profiles: ["cloudflared"]
     logging: *default-logging
     network_mode: service:tailscale

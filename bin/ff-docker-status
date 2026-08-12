@@ -1,7 +1,7 @@
 #!/bin/bash
-# GNAR — docker containers + pm2 processes, formatted for the dashboard pane.
+# farfield os — docker containers + pm2 processes, formatted for the dashboard pane.
 #
-# A dedicated helper (mirroring gnar-services-status)
+# A dedicated helper (mirroring ff-services-status)
 # rather than an inline command string — the latter was fragile to quote
 # inside tmux and silently killed its pane.
 set -uo pipefail

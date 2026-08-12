@@ -1,0 +1,50 @@
+#!/bin/bash
+# farfield os — run pending one-time migrations from the repo checkout.
+#
+# Pattern borrowed from Omarchy: migrations/ holds date-prefixed,
+# IDEMPOTENT shell scripts; each runs once per box, tracked as marker
+# files in /var/lib/farfield/migrations/. setup.sh calls this at the end
+# of every run, so fresh installs and upgrades converge on the same
+# state. Safe to re-run any time.
+#
+# Migrations must be written so that running them on an already-migrated
+# (or freshly installed) box is a no-op — guard every action on the
+# artifact it fixes actually existing.
+set -euo pipefail
+
+REPO=${FF_REPO:-}
+if [ -z "$REPO" ]; then
+    for cand in "$HOME/farfield-os" "$HOME/gnar"; do
+        [ -d "$cand/migrations" ] && REPO=$cand && break
+    done
+fi
+if [ -z "$REPO" ] || [ ! -d "$REPO/migrations" ]; then
+    echo "ff-migrate: no repo checkout found (set FF_REPO)" >&2
+    exit 1
+fi
+
+STATE=/var/lib/farfield/migrations
+sudo install -d "$STATE"
+
+ran=0
+for m in "$REPO"/migrations/*.sh; do
+    [ -e "$m" ] || continue
+    name=$(basename "$m")
+    if [ -f "$STATE/$name" ]; then
+        continue
+    fi
+    echo "ff-migrate: running $name"
+    if sudo bash "$m"; then
+        sudo touch "$STATE/$name"
+        ran=$((ran + 1))
+    else
+        echo "ff-migrate: $name FAILED — fix and re-run ff-migrate" >&2
+        exit 1
+    fi
+done
+
+if [ "$ran" -eq 0 ]; then
+    echo "ff-migrate: nothing pending"
+else
+    echo "ff-migrate: $ran migration(s) applied"
+fi

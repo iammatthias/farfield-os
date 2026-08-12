@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — container utilization charts: the kiosk dashboard's lower-left pane.
+# farfield os — container utilization charts: the kiosk dashboard's lower-left pane.
 #
 # Unicode sparklines of per-container CPU and memory over a sliding
 # window, with live network throughput and a host summary line (load
@@ -11,12 +11,12 @@
 #
 #   NAME                  CPU ▁▂▁▁▃▂▁ 0.4%   MEM ▅▅▅▅▅▅▅ 240M   NET 1.2K/s
 #
-# Self-refreshes from gnar-dashboard's pane loop; also runs one-shot
+# Self-refreshes from ff-dashboard's pane loop; also runs one-shot
 # (a single sample renders a one-tick chart and "-" for net rate).
 
 set -uo pipefail
 
-STATE=${GNAR_METRICS_STATE:-/tmp/gnar-metrics}
+STATE=${FF_METRICS_STATE:-/tmp/ff-metrics}
 KEEP=64                      # samples retained per series
 mkdir -p "$STATE"
 

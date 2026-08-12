@@ -1,5 +1,5 @@
 #!/bin/bash
-# gnar-kiosk-restart — gracefully restart the sway kiosk.
+# ff-kiosk-restart — gracefully restart the sway kiosk.
 #
 # `swaymsg exit` quits sway cleanly; getty@tty1's autologin then respawns it
 # via ~/.zprofile with fresh config. Works from any shell (incl. plain ssh):
@@ -29,7 +29,7 @@ if [ -n "${old_sway:-}" ]; then
         sleep 1
     done
     if kill -0 "$old_sway" 2>/dev/null; then
-        echo "gnar-kiosk-restart: old sway (pid $old_sway) still running — restart did not take" >&2
+        echo "ff-kiosk-restart: old sway (pid $old_sway) still running — restart did not take" >&2
         exit 1
     fi
 fi
@@ -44,5 +44,5 @@ for _ in $(seq 1 30); do
     fi
     sleep 2
 done
-echo "gnar-kiosk-restart: kiosk did not come back — check getty@tty1 / ~/.zprofile" >&2
+echo "ff-kiosk-restart: kiosk did not come back — check getty@tty1 / ~/.zprofile" >&2
 exit 1

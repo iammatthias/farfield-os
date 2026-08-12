@@ -1,4 +1,4 @@
-// GNAR — gnar-board: the full-screen kiosk dashboard.
+// farfield os — ff-board: the full-screen kiosk dashboard.
 //
 // A single ratatui TUI owning the whole display — host monitoring up
 // top, container charts and stack status below. Replaces the previous
@@ -61,7 +61,7 @@ const DOCKER_SOCK: &str = "/var/run/docker.sock";
 const KEEP: usize = 240; // samples per series (~8 min at 2s cadence)
 const STATS_EVERY: Duration = Duration::from_secs(2);
 const STATUS_EVERY: Duration = Duration::from_secs(30);
-const SERVICES: [&str; 6] = ["docker", "postgresql", "valkey", "fail2ban", "ufw", "gnar-stack"];
+const SERVICES: [&str; 6] = ["docker", "postgresql", "valkey", "fail2ban", "ufw", "ff-stack"];
 const STACK: &str = "/srv/stack";
 const TICKS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
@@ -81,7 +81,7 @@ enum Mode {
 }
 
 // ---------------------------------------------------------------------------
-// Touch action buttons (rack touch LCD; enabled by GNAR_TOUCH)
+// Touch action buttons (rack touch LCD; enabled by FF_TOUCH)
 // ---------------------------------------------------------------------------
 
 /// An on-screen control the OPS tile exposes when a touchscreen is present.
@@ -119,18 +119,18 @@ impl Action {
     }
     fn color(self) -> Color {
         match self {
-            Action::Reboot => C_RED,
-            Action::Update | Action::Prune | Action::RestartStack => C_YELLOW,
-            _ => C_CYAN,
+            Action::Reboot => C_ALARM,
+            Action::Update | Action::Prune | Action::RestartStack => C_SUN,
+            _ => C_SIGNAL,
         }
     }
     fn cmd(self) -> &'static str {
         match self {
-            // gnar-update --yes runs the upgrade as a detached systemd unit.
-            Action::Update => "gnar-update --yes",
-            Action::RestartKiosk => "gnar-kiosk-restart",
-            Action::RestartStack => "sudo -n systemctl restart gnar-stack.service",
-            Action::Prune => "sudo -n systemctl start gnar-docker-prune.service",
+            // ff-update --yes runs the upgrade as a detached systemd unit.
+            Action::Update => "ff-update --yes",
+            Action::RestartKiosk => "ff-kiosk-restart",
+            Action::RestartStack => "sudo -n systemctl restart ff-stack.service",
+            Action::Prune => "sudo -n systemctl start ff-docker-prune.service",
             Action::Reboot => "sudo -n systemctl reboot",
         }
     }
@@ -165,7 +165,7 @@ struct Btn {
 /// button live. `buttons`/`back` are this frame's hit boxes.
 #[derive(Default)]
 struct Touch {
-    enabled: bool,           // a pointer/touchscreen is present (GNAR_TOUCH)
+    enabled: bool,           // a pointer/touchscreen is present (FF_TOUCH)
     armed: Option<(Action, Instant)>,
     buttons: Vec<Btn>,       // OPS action buttons (fullscreen only)
     back: Option<Rect>,      // back button — Some iff this frame is fullscreen
@@ -183,14 +183,14 @@ fn wm_toggle_fullscreen() {
     let _ = Command::new("swaymsg").args(["fullscreen", "toggle"]).status();
 }
 
-/// If the presence daemon (gnar-kiosk-presence) has the display asleep,
+/// If the presence daemon (ff-kiosk-presence) has the display asleep,
 /// a tap should ONLY wake it: power the output on, arm the tap-override
 /// (file mtime = now; the daemon keeps the display on while it's fresh),
 /// mark the shared state on, and report the tap as swallowed. Fail-open:
 /// any error here means "not asleep" and the tap proceeds normally.
 fn wake_tap_swallowed() -> bool {
     let Ok(rt) = std::env::var("XDG_RUNTIME_DIR") else { return false };
-    let dir = format!("{rt}/gnar-display");
+    let dir = format!("{rt}/ff-display");
     let asleep = fs::read_to_string(format!("{dir}/state"))
         .map(|s| s.trim() == "off")
         .unwrap_or(false);
@@ -201,7 +201,7 @@ fn wake_tap_swallowed() -> bool {
         let _ = fs::write(format!("{dir}/override"), b"");
         let _ = fs::write(format!("{dir}/state"), b"on");
         let mut log = Command::new("logger");
-        log.args(["-t", "gnar-display", "display on — tap (override armed)"]);
+        log.args(["-t", "ff-display", "display on — tap (override armed)"]);
         spawn_reaped(log);
     }
     asleep
@@ -648,7 +648,7 @@ fn sample_host(h: &mut Host) {
     if let Some(t) = h.temp_c {
         push(&mut h.temp_hist, t);
     }
-    // CPU package power via RAPL. Root-only by default; gnar ships a
+    // CPU package power via RAPL. Root-only by default; farfield os ships a
     // tmpfiles.d rule opening it to 0444 — degrade silently without it.
     if let Some(e) = fs::read_to_string("/sys/class/powercap/intel-rapl:0/energy_uj")
         .ok()
@@ -989,7 +989,7 @@ fn clock_loop(app: Arc<Mutex<App>>) {
 /// from the host). private → :80, public → :8080, previews are
 /// TLS-only so they get a TCP-connect check on :443.
 fn probe_sites(sites: &mut [Site]) {
-    let ip = match docker_get("/containers/gnar-tailscale/json").ok().and_then(|v| {
+    let ip = match docker_get("/containers/ff-tailscale/json").ok().and_then(|v| {
         let ns = &v["NetworkSettings"];
         ns["IPAddress"]
             .as_str()
@@ -1033,7 +1033,7 @@ fn http_probe(ip: &str, port: u16, host: &str) -> Option<(u16, u64)> {
     s.set_write_timeout(Some(Duration::from_secs(3))).ok();
     write!(
         s,
-        "GET / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: gnar-board\r\nConnection: close\r\n\r\n"
+        "GET / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: ff-board\r\nConnection: close\r\n\r\n"
     )
     .ok()?;
     let mut buf = [0u8; 32];
@@ -1153,7 +1153,7 @@ fn sample_traffic(
                         let Ok(v) = serde_json::from_str::<Value>(l) else { continue };
                         // The board's own site probes carry this UA —
                         // self-inflicted requests must not pollute the counts.
-                        if v["request"]["headers"]["User-Agent"][0].as_str() == Some("gnar-board") {
+                        if v["request"]["headers"]["User-Agent"][0].as_str() == Some("ff-board") {
                             continue;
                         }
                         let host = v["request"]["host"]
@@ -1223,7 +1223,7 @@ fn sudo_lines(args: &[&str]) -> Vec<String> {
 }
 
 /// Host alerts, with enough detail to act on — not just counts. All via
-/// passwordless sudo (gnar grants it by design). Coredumps log entire
+/// passwordless sudo (farfield os grants it by design). Coredumps log entire
 /// stack traces at priority err, which would read as hundreds of "errors"
 /// per crash — so crashes are their own signal (grouped by process) and
 /// the trace spam is excluded from the error count + sample.
@@ -1294,7 +1294,7 @@ fn sample_alerts() -> Alerts {
 /// (tailnet IP, peers online, peers total) from the tailscale container.
 fn sample_tailscale() -> Option<(String, usize, usize)> {
     let out = Command::new("timeout")
-        .args(["10", "docker", "exec", "gnar-tailscale", "tailscale", "status", "--json"])
+        .args(["10", "docker", "exec", "ff-tailscale", "tailscale", "status", "--json"])
         .output()
         .ok()?;
     let v: Value = serde_json::from_slice(&out.stdout).ok()?;
@@ -1417,7 +1417,7 @@ fn claude_usage() -> (usize, usize) {
 /// "Mon 2026-06-15" from the prune timer's next elapse, or "".
 fn prune_timer_next() -> String {
     Command::new("systemctl")
-        .args(["show", "gnar-docker-prune.timer", "-p", "NextElapseUSecRealtime", "--value"])
+        .args(["show", "ff-docker-prune.timer", "-p", "NextElapseUSecRealtime", "--value"])
         .output()
         .ok()
         .map(|o| {
@@ -1496,25 +1496,30 @@ fn disk_usage() -> (u8, String) {
 // Rendering
 // ---------------------------------------------------------------------------
 
-// Tokyo Night-ish truecolor palette. foot (the kiosk terminal) speaks
-// 24-bit color; on lesser terminals crossterm degrades to nearest-match.
-const C_FG: Color = Color::Rgb(0xc0, 0xca, 0xf5);
-const C_DIM: Color = Color::Rgb(0x56, 0x5f, 0x89);
-const C_BORDER: Color = Color::Rgb(0x3b, 0x42, 0x61);
-const C_BG_ALT: Color = Color::Rgb(0x1a, 0x1b, 0x26);
-const C_CYAN: Color = Color::Rgb(0x7d, 0xcf, 0xff);
-const C_BLUE: Color = Color::Rgb(0x7a, 0xa2, 0xf7);
-const C_MAGENTA: Color = Color::Rgb(0xbb, 0x9a, 0xf7);
-const C_GREEN: Color = Color::Rgb(0x9e, 0xce, 0x6a);
-const C_YELLOW: Color = Color::Rgb(0xe0, 0xaf, 0x68);
-const C_RED: Color = Color::Rgb(0xf7, 0x76, 0x8e);
+// farfield truecolor palette — the product half of docs/BRAND.md (see
+// farfield's lib/theme/theme.css): Paper ink on a Deep Space field, warm
+// earth tones for data, Horizon orange reserved as the rare signal. foot
+// (the kiosk terminal) speaks 24-bit color; on lesser terminals crossterm
+// degrades to nearest-match.
+const C_BG: Color = Color::Rgb(0x0e, 0x22, 0x2d); // Deep Space
+const C_FG: Color = Color::Rgb(0xf3, 0xe5, 0xd1); // Paper
+const C_DIM: Color = Color::Rgb(0x6a, 0x86, 0x99); // Signal Mist
+const C_BORDER: Color = Color::Rgb(0x2e, 0x3d, 0x44); // Paper 14% over Deep Space
+const C_BG_ALT: Color = Color::Rgb(0x13, 0x2f, 0x3d); // panel surface
+const C_MIST: Color = Color::Rgb(0x9b, 0xab, 0xb3); // cool data — observation
+const C_BLUE: Color = Color::Rgb(0x5b, 0x8a, 0xb8); // Atmosphere, lifted for dark ground
+const C_OXIDE: Color = Color::Rgb(0xad, 0x8a, 0x72); // warm data — Oxide, lifted
+const C_GREEN: Color = Color::Rgb(0x87, 0xa5, 0x83); // terrestrial green — ok
+const C_SUN: Color = Color::Rgb(0xd1, 0xaa, 0x83); // Distant Sun — warn
+const C_ALARM: Color = Color::Rgb(0xf2, 0x90, 0x7d); // alarm — never emphasis
+const C_SIGNAL: Color = Color::Rgb(0xe5, 0x9f, 0x67); // Horizon — the one rare accent
 
-const GREEN_RGB: (u8, u8, u8) = (0x9e, 0xce, 0x6a);
-const YELLOW_RGB: (u8, u8, u8) = (0xe0, 0xaf, 0x68);
-const RED_RGB: (u8, u8, u8) = (0xf7, 0x76, 0x8e);
-const BLUE_RGB: (u8, u8, u8) = (0x7a, 0xa2, 0xf7);
-const MAGENTA_RGB: (u8, u8, u8) = (0xbb, 0x9a, 0xf7);
-const CYAN_RGB: (u8, u8, u8) = (0x7d, 0xcf, 0xff);
+const GREEN_RGB: (u8, u8, u8) = (0x87, 0xa5, 0x83);
+const SUN_RGB: (u8, u8, u8) = (0xd1, 0xaa, 0x83);
+const ALARM_RGB: (u8, u8, u8) = (0xf2, 0x90, 0x7d);
+const BLUE_RGB: (u8, u8, u8) = (0x5b, 0x8a, 0xb8);
+const OXIDE_RGB: (u8, u8, u8) = (0xad, 0x8a, 0x72);
+const MIST_RGB: (u8, u8, u8) = (0x9b, 0xab, 0xb3);
 
 fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f64) -> Color {
     let t = t.clamp(0.0, 1.0);
@@ -1522,21 +1527,21 @@ fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f64) -> Color {
     Color::Rgb(c(a.0, b.0), c(a.1, b.1), c(a.2, b.2))
 }
 
-/// green → amber → rose as t goes 0 → 1. The signature gradient for
-/// anything that means "how loaded is this".
+/// terrestrial green → distant sun → alarm as t goes 0 → 1. The signature
+/// gradient for anything that means "how loaded is this".
 fn heat(t: f64) -> Color {
     let t = t.clamp(0.0, 1.0);
     if t < 0.5 {
-        lerp(GREEN_RGB, YELLOW_RGB, t * 2.0)
+        lerp(GREEN_RGB, SUN_RGB, t * 2.0)
     } else {
-        lerp(YELLOW_RGB, RED_RGB, (t - 0.5) * 2.0)
+        lerp(SUN_RGB, ALARM_RGB, (t - 0.5) * 2.0)
     }
 }
 
-/// Intensity tint of a hue: muted slate at t=0, full color at t=1.
-/// Used for throughput graphs, where "hot" means "busy" not "bad".
+/// Intensity tint of a hue: muted deep-space slate at t=0, full color at
+/// t=1. Used for throughput graphs, where "hot" means "busy" not "bad".
 fn tint(hue: (u8, u8, u8)) -> impl Fn(f64) -> Color {
-    move |t: f64| lerp((0x2f, 0x33, 0x4d), hue, 0.35 + 0.65 * t.clamp(0.0, 1.0))
+    move |t: f64| lerp((0x1f, 0x3b, 0x49), hue, 0.35 + 0.65 * t.clamp(0.0, 1.0))
 }
 
 fn dim() -> Style {
@@ -1811,8 +1816,8 @@ fn human_uptime(secs: u64) -> String {
 fn dot_color(state: &str) -> Color {
     match state {
         "active" | "running" | "ok" | "up" => C_GREEN,
-        "inactive" | "failed" | "exited" | "dead" | "down" => C_RED,
-        _ => C_YELLOW,
+        "inactive" | "failed" | "exited" | "dead" | "down" => C_ALARM,
+        _ => C_SUN,
     }
 }
 
@@ -1827,7 +1832,7 @@ fn sampler_err_line(frame: &mut Frame, app: &App) {
     }
     let line = Rect { y: area.y + area.height - 1, height: 1, ..area };
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(format!(" {e} "), Style::new().fg(C_RED)))).right_aligned(),
+        Paragraph::new(Line::from(Span::styled(format!(" {e} "), Style::new().fg(C_ALARM)))).right_aligned(),
         line,
     );
 }
@@ -1883,12 +1888,13 @@ fn ui_full(frame: &mut Frame, app: &App) {
 
     let loadc = heat(h.load / h.ncpu.max(1) as f64);
     let title = Line::from(vec![
-        Span::styled(" ▲ GNAR ", accent(C_MAGENTA)),
+        Span::styled(" ⊙ ", Style::new().fg(C_SIGNAL)),
+        Span::styled("farfield ", accent(C_FG)),
         Span::styled(format!("· {} · up {} · ", h.hostname, human_uptime(h.uptime)), dim()),
         Span::styled(format!("load {:.2}", h.load), Style::new().fg(loadc)),
         Span::styled(format!("/{}", h.ncpu), dim()),
     ]);
-    let clock = Line::from(Span::styled(format!("{} ", app.clock), accent(C_CYAN))).right_aligned();
+    let clock = Line::from(Span::styled(format!("{} ", app.clock), accent(C_MIST))).right_aligned();
     frame.render_widget(Paragraph::new(title), header);
     frame.render_widget(Paragraph::new(clock), header);
 
@@ -1911,7 +1917,7 @@ fn render_cpu(frame: &mut Frame, cpu_a: Rect, app: &App, bordered: bool) {
     // Sensors ride the header as Tufte word-graphics: trend sparkline then
     // the current reading. Flat = steady, which is its own glanceable signal.
     let mut title = vec![
-        Span::styled(" CPU ", accent(C_CYAN)),
+        Span::styled(" CPU ", accent(C_MIST)),
         Span::styled(format!("{:.1}% ", h.cpu_cur), Style::new().fg(heat(h.cpu_cur / 100.0))),
     ];
     if let Some(t) = h.temp_c {
@@ -1921,7 +1927,7 @@ fn render_cpu(frame: &mut Frame, cpu_a: Rect, app: &App, bordered: bool) {
     }
     if let Some(w) = h.watts {
         title.push(Span::styled("· ", dim()));
-        title.push(Span::styled(spark_abs(&h.watts_hist, 5, 25.0), Style::new().fg(C_YELLOW)));
+        title.push(Span::styled(spark_abs(&h.watts_hist, 5, 25.0), Style::new().fg(C_SUN)));
         title.push(Span::styled(format!(" {w:.0}W "), dim()));
     }
     // Tile mode: the kiosk has no global header, so clock + uptime ride
@@ -2006,7 +2012,7 @@ fn render_mem(frame: &mut Frame, mem_a: Rect, app: &App, bordered: bool) {
     let h = &app.host;
     let mem_t = if h.mem_total > 0.0 { h.mem_cur / h.mem_total } else { 0.0 };
     let title = vec![
-        Span::styled(" MEM ", accent(C_MAGENTA)),
+        Span::styled(" MEM ", accent(C_OXIDE)),
         Span::styled(
             format!("{} / {} ", human_mem(h.mem_cur).trim(), human_mem(h.mem_total).trim()),
             Style::new().fg(C_FG),
@@ -2040,14 +2046,14 @@ fn render_mem(frame: &mut Frame, mem_a: Rect, app: &App, bordered: bool) {
         frame.render_widget(
             Paragraph::new(vec![
                 Line::default(),
-                gauge_line("used", h.mem_cur / total, human_mem(h.mem_cur).trim().to_string(), C_MAGENTA, w),
+                gauge_line("used", h.mem_cur / total, human_mem(h.mem_cur).trim().to_string(), C_OXIDE, w),
                 gauge_line("avail", h.mem_avail / total, human_mem(h.mem_avail).trim().to_string(), C_GREEN, w),
                 gauge_line("cache", h.mem_cache / total, human_mem(h.mem_cache).trim().to_string(), C_BLUE, w),
                 gauge_line(
                     "swap",
                     if h.swap_total > 0.0 { h.swap_used / h.swap_total } else { 0.0 },
                     format!("{} / {}", human_mem(h.swap_used).trim(), human_mem(h.swap_total).trim()),
-                    C_YELLOW,
+                    C_SUN,
                     w,
                 ),
             ]),
@@ -2066,12 +2072,12 @@ fn render_mem(frame: &mut Frame, mem_a: Rect, app: &App, bordered: bool) {
                 graph.width as usize,
                 graph.height as usize,
                 move |v| (v / total).sqrt(),
-                move |v| lerp(BLUE_RGB, MAGENTA_RGB, v / total),
+                move |v| lerp(BLUE_RGB, OXIDE_RGB, v / total),
             )),
             graph,
         );
         let swap_style = if h.swap_total > 0.0 && h.swap_used / h.swap_total > 0.5 {
-            Style::new().fg(C_YELLOW)
+            Style::new().fg(C_SUN)
         } else {
             dim()
         };
@@ -2095,7 +2101,7 @@ fn render_net(frame: &mut Frame, net_a: Rect, app: &App, bordered: bool) {
         net_a,
         bordered,
         vec![
-            Span::styled(" NET ", accent(C_YELLOW)),
+            Span::styled(" NET ", accent(C_SUN)),
             Span::styled(format!("{} ", h.iface), dim()),
         ],
         None,
@@ -2119,8 +2125,8 @@ fn render_net(frame: &mut Frame, net_a: Rect, app: &App, bordered: bool) {
     let [rx_a, tx_a] =
         Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(body);
     for (area, arrow, hue, cur, series) in [
-        (rx_a, '↓', CYAN_RGB, h.rx_cur, &h.rx),
-        (tx_a, '↑', MAGENTA_RGB, h.tx_cur, &h.tx),
+        (rx_a, '↓', MIST_RGB, h.rx_cur, &h.rx),
+        (tx_a, '↑', OXIDE_RGB, h.tx_cur, &h.tx),
     ] {
         let [label_a, graph_a] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(1)]).areas(area);
@@ -2151,9 +2157,9 @@ fn render_net(frame: &mut Frame, net_a: Rect, app: &App, bordered: bool) {
             Line::default(),
             Line::from(vec![
                 Span::styled("Σ ", dim()),
-                Span::styled(format!("↓ {}", human_size(h.rx_total as f64)), Style::new().fg(C_CYAN)),
+                Span::styled(format!("↓ {}", human_size(h.rx_total as f64)), Style::new().fg(C_MIST)),
                 Span::styled(" · ", dim()),
-                Span::styled(format!("↑ {}", human_size(h.tx_total as f64)), Style::new().fg(C_MAGENTA)),
+                Span::styled(format!("↑ {}", human_size(h.tx_total as f64)), Style::new().fg(C_OXIDE)),
                 Span::styled("      tcp ", dim()),
                 Span::styled(spark_abs(&h.tcp_hist, 10, 128.0), Style::new().fg(C_BLUE)),
                 Span::styled(format!(" {} estab · {} tw", h.tcp_inuse, h.tcp_tw), dim()),
@@ -2173,7 +2179,7 @@ fn render_net(frame: &mut Frame, net_a: Rect, app: &App, bordered: bool) {
             link.push(Span::styled("      TS ", dim()));
             link.push(Span::styled(
                 "● ".to_string(),
-                Style::new().fg(if app.ts_online > 0 { C_GREEN } else { C_YELLOW }),
+                Style::new().fg(if app.ts_online > 0 { C_GREEN } else { C_SUN }),
             ));
             link.push(Span::styled(
                 format!("{}/{} peers", app.ts_online, app.ts_total),
@@ -2193,7 +2199,7 @@ fn render_net(frame: &mut Frame, net_a: Rect, app: &App, bordered: bool) {
             Span::styled(format!("{}", app.sites.len()), dim()),
         ];
         if down > 0 {
-            header.push(Span::styled(format!(" · {down} down"), Style::new().fg(C_RED)));
+            header.push(Span::styled(format!(" · {down} down"), Style::new().fg(C_ALARM)));
         }
         let mut lines = vec![Line::default(), Line::from(header), Line::default()];
         // Three header lines above; cycle the site rows through what's left.
@@ -2237,9 +2243,9 @@ fn render_disk(frame: &mut Frame, disk_a: Rect, app: &App, bordered: bool) {
                 Line::default(),
                 Line::from(vec![
                     Span::styled("Σ ", dim()),
-                    Span::styled(format!("read {}", human_size(h.io_r_total as f64)), Style::new().fg(C_CYAN)),
+                    Span::styled(format!("read {}", human_size(h.io_r_total as f64)), Style::new().fg(C_MIST)),
                     Span::styled(" · ", dim()),
-                    Span::styled(format!("written {}", human_size(h.io_w_total as f64)), Style::new().fg(C_MAGENTA)),
+                    Span::styled(format!("written {}", human_size(h.io_w_total as f64)), Style::new().fg(C_OXIDE)),
                     Span::styled(
                         if app.snapshots > 0 {
                             format!("      since boot · {} btrfs snapshots", app.snapshots)
@@ -2269,10 +2275,10 @@ fn render_disk(frame: &mut Frame, disk_a: Rect, app: &App, bordered: bool) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("io  read ", dim()),
-            Span::styled(human_rate(Some(h.io_r_cur)), Style::new().fg(C_CYAN)),
+            Span::styled(human_rate(Some(h.io_r_cur)), Style::new().fg(C_MIST)),
             Span::styled(format!("  peak {}", human_rate(Some(peak(&h.io_r)))), dim()),
             Span::styled("      write ", dim()),
-            Span::styled(human_rate(Some(h.io_w_cur)), Style::new().fg(C_MAGENTA)),
+            Span::styled(human_rate(Some(h.io_w_cur)), Style::new().fg(C_OXIDE)),
             Span::styled(format!("  peak {}", human_rate(Some(peak(&h.io_w)))), dim()),
         ])),
         iolabel_a,
@@ -2281,8 +2287,8 @@ fn render_disk(frame: &mut Frame, disk_a: Rect, app: &App, bordered: bool) {
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(iograph_a);
     // Fixed log axis (10 KB/s → ~2 GB/s NVMe): journal/container-log
     // trickle reads as low texture, real transfers climb the panel.
-    let tint_r = tint(CYAN_RGB);
-    let tint_w = tint(MAGENTA_RGB);
+    let tint_r = tint(MIST_RGB);
+    let tint_w = tint(OXIDE_RGB);
     frame.render_widget(
         Paragraph::new(graph_lines(
             &h.io_r,
@@ -2309,12 +2315,12 @@ fn render_containers(frame: &mut Frame, cont_a: Rect, app: &App, bordered: bool)
     let total_mem: f64 = app.containers.values().map(|s| s.mem_cur).sum();
     let flagged = app.containers.values().filter(|s| s.flag.is_some()).count();
     let mut title = vec![
-        Span::styled(" CONTAINERS ", accent(C_CYAN)),
+        Span::styled(" CONTAINERS ", accent(C_MIST)),
         Span::styled(format!("{} ", app.containers.len()), Style::new().fg(C_FG)),
         Span::styled(format!("· mem {} ", human_mem(total_mem).trim()), dim()),
     ];
     if flagged > 0 {
-        title.push(Span::styled(format!("· {flagged} unhealthy "), Style::new().fg(C_RED)));
+        title.push(Span::styled(format!("· {flagged} unhealthy "), Style::new().fg(C_ALARM)));
     }
     let cont_inner = panel(frame, cont_a, bordered, title, None);
     // The list cycles (containers_panel) with breathing room at the bottom;
@@ -2334,7 +2340,7 @@ fn render_status(frame: &mut Frame, stat_a: Rect, app: &App, tile: bool, bordere
     } else {
         (" STATUS ", status_panel(app))
     };
-    let stat_inner = panel(frame, stat_a, bordered, vec![Span::styled(title, accent(C_MAGENTA))], None);
+    let stat_inner = panel(frame, stat_a, bordered, vec![Span::styled(title, accent(C_OXIDE))], None);
     frame.render_widget(Paragraph::new(content), stat_inner);
 }
 
@@ -2342,7 +2348,7 @@ fn render_status(frame: &mut Frame, stat_a: Rect, app: &App, tile: bool, bordere
 /// colour on the dark background (matches the tiles); an armed button fills
 /// solid so the "tap again" state is unmistakable. Records the hit box.
 fn button(frame: &mut Frame, rect: Rect, action: Action, armed: bool, touch: &mut Touch) {
-    let color = if armed { C_YELLOW } else { action.color() };
+    let color = if armed { C_SUN } else { action.color() };
     let label = if armed { format!("{}?", action.label()) } else { action.label().to_string() };
     let mut block = Block::bordered()
         .border_set(ratatui::symbols::border::ROUNDED)
@@ -2352,7 +2358,7 @@ fn button(frame: &mut Frame, rect: Rect, action: Action, armed: bool, touch: &mu
     }
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
-    let fg = if armed { Color::Black } else { color };
+    let fg = if armed { C_BG } else { color };
     let pad = (inner.height.saturating_sub(1) / 2) as usize;
     let mut lines: Vec<Line> = vec![Line::default(); pad];
     lines.push(Line::from(Span::styled(label, Style::new().fg(fg).add_modifier(Modifier::BOLD))).centered());
@@ -2395,7 +2401,7 @@ fn containers_panel(app: &App, width: usize, height: usize) -> Vec<Line<'static>
     let namew = 26usize;
     let sw = ((width.saturating_sub(namew + 2 + 7 + 3 + 7 + 3 + 8)) / 2).clamp(8, 56);
     let rowlen = namew + 2 + sw + 7 + 3 + sw + 7 + 3 + 8;
-    let memblue = Color::Rgb(0x6a, 0x7e, 0xc2);
+    let memblue = C_BLUE;
 
     let mut lines = vec![
         Line::from(vec![
@@ -2408,7 +2414,7 @@ fn containers_panel(app: &App, width: usize, height: usize) -> Vec<Line<'static>
     ];
 
     if let Some(err) = &app.docker_err {
-        lines.push(Line::styled(format!("docker unavailable: {err}"), Style::new().fg(C_RED)));
+        lines.push(Line::styled(format!("docker unavailable: {err}"), Style::new().fg(C_ALARM)));
         return lines;
     }
 
@@ -2416,15 +2422,15 @@ fn containers_panel(app: &App, width: usize, height: usize) -> Vec<Line<'static>
     for (i, (name, s)) in app.containers.iter().enumerate() {
         let t = (s.cpu_cur / 100.0).clamp(0.0, 1.0);
         let name_color = if s.flag.is_some() {
-            C_RED // restarting / unhealthy
-        } else if name.starts_with("gnar") {
-            C_CYAN
+            C_ALARM // restarting / unhealthy
+        } else if name.starts_with("ff-") || name.starts_with("gnar") {
+            C_MIST
         } else {
             C_BLUE
         };
         let shown: String = name.chars().take(namew).collect();
         let net_style = match s.net_rate {
-            Some(r) if r >= 1024.0 => Style::new().fg(C_CYAN),
+            Some(r) if r >= 1024.0 => Style::new().fg(C_MIST),
             _ => dim(),
         };
         let mut spans = vec![
@@ -2480,15 +2486,15 @@ fn site_rows(app: &App) -> Vec<Line<'static>> {
             let (dotc, info) = match site.ok {
                 Some(true) if site.code == 0 => (C_GREEN, format!("tls {}ms", site.ms)),
                 Some(true) => (C_GREEN, format!("{} {}ms", site.code, site.ms)),
-                Some(false) if site.code > 0 => (C_RED, format!("{} {}ms", site.code, site.ms)),
-                Some(false) => (C_RED, "down".to_string()),
-                None => (C_YELLOW, String::new()),
+                Some(false) if site.code > 0 => (C_ALARM, format!("{} {}ms", site.code, site.ms)),
+                Some(false) => (C_ALARM, "down".to_string()),
+                None => (C_SUN, String::new()),
             };
-            let info_style = if matches!(site.ok, Some(false)) { Style::new().fg(C_RED) } else { dim() };
+            let info_style = if matches!(site.ok, Some(false)) { Style::new().fg(C_ALARM) } else { dim() };
             let kind_color = match site.kind.as_str() {
-                "private" => C_CYAN,
-                "public" => C_MAGENTA,
-                _ => C_YELLOW,
+                "private" => C_MIST,
+                "public" => C_OXIDE,
+                _ => C_SUN,
             };
             // Truncate long hostnames — format width pads but never cuts.
             let mut host: String = site.host.chars().take(24).collect();
@@ -2509,13 +2515,13 @@ fn site_rows(app: &App) -> Vec<Line<'static>> {
                         spark_vec(&t.spark, 1.0, 1.1)
                     };
                     spans.push(Span::styled(sp, dim()));
-                    spans.push(Span::styled(format!(" {:>4}/5m ", t.reqs), Style::new().fg(C_CYAN)));
+                    spans.push(Span::styled(format!(" {:>4}/5m ", t.reqs), Style::new().fg(C_MIST)));
                     // Priority: server errors > actionable 4xx > 404 noise.
                     // 404s are dimmed so they read as background hum, not a fault.
                     if t.e5xx > 0 {
-                        spans.push(Span::styled(format!("{}×5xx ", t.e5xx), Style::new().fg(C_RED)));
+                        spans.push(Span::styled(format!("{}×5xx ", t.e5xx), Style::new().fg(C_ALARM)));
                     } else if t.e4xx > 0 {
-                        spans.push(Span::styled(format!("{}×4xx ", t.e4xx), Style::new().fg(C_YELLOW)));
+                        spans.push(Span::styled(format!("{}×4xx ", t.e4xx), Style::new().fg(C_SUN)));
                     } else if t.e404 > 0 {
                         spans.push(Span::styled(format!("{}×404 ", t.e404), dim()));
                     } else {
@@ -2558,11 +2564,11 @@ fn docker_line(app: &App) -> Line<'static> {
 fn claude_summary_line(app: &App) -> Line<'static> {
     let live = app.claude_runs > 0;
     let mut spans = vec![
-        Span::styled("CLAUDE".to_string(), accent(C_MAGENTA)),
+        Span::styled("CLAUDE".to_string(), accent(C_OXIDE)),
         Span::raw("   "),
         Span::styled(
             if live { "● " } else { "○ " }.to_string(),
-            Style::new().fg(if live { C_CYAN } else { C_DIM }),
+            Style::new().fg(if live { C_MIST } else { C_DIM }),
         ),
         Span::styled(
             if live {
@@ -2570,7 +2576,7 @@ fn claude_summary_line(app: &App) -> Line<'static> {
             } else {
                 "idle".to_string()
             },
-            Style::new().fg(if live { C_CYAN } else { C_DIM }),
+            Style::new().fg(if live { C_MIST } else { C_DIM }),
         ),
     ];
     if app.claude_total > 0 {
@@ -2609,15 +2615,15 @@ fn alert_lines(app: &App) -> Vec<Line<'static>> {
     if app.failed_units.is_empty() && app.crashes.is_empty() && app.journal_errs == 0 {
         return Vec::new();
     }
-    let red_bold = Style::new().fg(C_RED).add_modifier(Modifier::BOLD);
+    let red_bold = Style::new().fg(C_ALARM).add_modifier(Modifier::BOLD);
     let mut out = vec![
         Line::default(),
         Line::from(Span::styled(
             "  ⚠  ALERTS  ",
-            Style::new().bg(C_RED).fg(Color::Black).add_modifier(Modifier::BOLD),
+            Style::new().bg(C_ALARM).fg(C_BG).add_modifier(Modifier::BOLD),
         )),
     ];
-    let bullet = || Span::styled("● ".to_string(), Style::new().fg(C_RED));
+    let bullet = || Span::styled("● ".to_string(), Style::new().fg(C_ALARM));
     if !app.failed_units.is_empty() {
         out.push(Line::from(vec![
             bullet(),
@@ -2674,8 +2680,8 @@ fn ops_panel(app: &App) -> Vec<Line<'static>> {
     }
     match app.sec_updates {
         Some(s) if s > 0 => {
-            sec.push(Span::styled("   ● ".to_string(), Style::new().fg(C_RED)));
-            sec.push(Span::styled(format!("{s} security"), Style::new().fg(C_RED)));
+            sec.push(Span::styled("   ● ".to_string(), Style::new().fg(C_ALARM)));
+            sec.push(Span::styled(format!("{s} security"), Style::new().fg(C_ALARM)));
         }
         Some(_) => sec.push(Span::styled("   ✓ no known CVEs".to_string(), Style::new().fg(C_GREEN))),
         None => {}
@@ -2688,16 +2694,16 @@ fn ops_panel(app: &App) -> Vec<Line<'static>> {
     }
     let mut intr = Vec::new();
     if let Some(v) = &app.reboot_pending {
-        intr.push(Span::styled(format!("● reboot pending ({v})   "), Style::new().fg(C_YELLOW)));
+        intr.push(Span::styled(format!("● reboot pending ({v})   "), Style::new().fg(C_SUN)));
     }
     intr.push(Span::styled(
         format!("{} banned", app.banned_ips),
-        Style::new().fg(if app.banned_ips > 0 { C_YELLOW } else { C_DIM }),
+        Style::new().fg(if app.banned_ips > 0 { C_SUN } else { C_DIM }),
     ));
     intr.push(Span::styled(" · ", dim()));
     intr.push(Span::styled(
         format!("{} ssh fails/h", app.ssh_fails),
-        Style::new().fg(if app.ssh_fails > 0 { C_YELLOW } else { C_DIM }),
+        Style::new().fg(if app.ssh_fails > 0 { C_SUN } else { C_DIM }),
     ));
     lines.push(Line::from(intr));
     lines
@@ -2715,8 +2721,8 @@ fn main() -> std::io::Result<()> {
         Some("containers") => Mode::Containers,
         Some("status") => Mode::Status,
         Some(other) => {
-            eprintln!("gnar-board: unknown panel '{other}'");
-            eprintln!("usage: gnar-board [full|cpu|mem|net|disk|containers|status]");
+            eprintln!("ff-board: unknown panel '{other}'");
+            eprintln!("usage: ff-board [full|cpu|mem|net|disk|containers|status]");
             std::process::exit(2);
         }
     };
@@ -2781,7 +2787,7 @@ fn main() -> std::io::Result<()> {
     // exists. Needs the compositor to deliver touch as pointer events.
     execute!(std::io::stdout(), EnableMouseCapture).ok();
     // Kiosk tiles respawn inside one long-lived foot alt-screen (the
-    // `while :; do gnar-board …` loop), so the buffer still holds the
+    // `while :; do ff-board …` loop), so the buffer still holds the
     // previous run's cells. ratatui assumes a blank screen and only
     // diffs against it, leaving stale glyphs wherever the new frame is
     // shorter. A one-time clear realigns its model with the screen.
@@ -2794,7 +2800,7 @@ fn main() -> std::io::Result<()> {
     // A tap fullscreens a tile; the fullscreen view carries the back button
     // and (on OPS) the action buttons. Enabled when a pointer is present.
     let mut touch = Touch {
-        enabled: std::env::var("GNAR_TOUCH").as_deref() == Ok("1"),
+        enabled: std::env::var("FF_TOUCH").as_deref() == Ok("1"),
         ..Touch::default()
     };
     let mut redraw = true;

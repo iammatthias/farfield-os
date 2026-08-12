@@ -1,4 +1,4 @@
-# GNAR - Zsh Configuration
+# farfield os - Zsh Configuration
 
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"
@@ -7,7 +7,6 @@ ZSH_THEME="spaceship"
 plugins=(
   git
   docker
-  docker-compose
   node
   npm
   python
@@ -134,7 +133,6 @@ alias tree="eza --icons --tree"
 # bat as a better cat / pager
 alias cat="bat --style=plain --paging=never"
 alias less="bat --paging=always"
-alias more="bat --paging=always"
 
 # Shell quality of life
 alias df="df -h"
@@ -176,7 +174,7 @@ alias tk="tmux kill-session -t"
 
 # Docker
 alias dkr="docker"
-alias dkc="docker-compose"
+alias dkc="docker compose"
 alias dkps="docker ps"
 alias dkpa="docker ps -a"
 alias dki="docker images"
@@ -185,11 +183,9 @@ alias dkex="docker exec -it"
 # System
 alias c="clear"
 alias reload="source ~/.zshrc"
-alias r="source ~/.zshrc"
 alias myip="curl -s ifconfig.me"
 alias localip="ip -4 addr show | awk '/inet / {print \$2}'"
 alias ff="fastfetch"
-alias nf="fastfetch"
 alias ports="ss -tulpn"
 
 # System monitoring
@@ -208,7 +204,7 @@ alias ufw-status="sudo ufw status verbose"
 alias fail2ban-status="sudo fail2ban-client status"
 
 # Caddy
-# Caddy lives in the gnar-caddy container under /srv/stack now.
+# Caddy lives in the ff-caddy container under /srv/stack now.
 alias caddy-edit="sudo \$EDITOR /srv/stack/Caddyfile"
 alias caddy-reload="sudo docker compose -f /srv/stack/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 alias caddy-logs="sudo docker compose -f /srv/stack/docker-compose.yml logs -f caddy"
@@ -295,7 +291,6 @@ up() {
 }
 
 alias e="nvim"
-alias edit="nvim"
 
 # ----- Caddy site management (Caddy runs in /srv/stack) -----
 #
@@ -303,13 +298,13 @@ alias edit="nvim"
 #   :80   — private vhosts (tailnet only). Use add-site.
 #   :8080 — public vhosts (Cloudflare Tunnel target). Use add-public-site.
 
-GNAR_CADDYFILE=/srv/stack/Caddyfile
-# Use -f to point compose at the file directly so `sudo $GNAR_CADDY_RELOAD`
+FF_CADDYFILE=/srv/stack/Caddyfile
+# Use -f to point compose at the file directly so `sudo $FF_CADDY_RELOAD`
 # is a single command — `sudo cd ...` fails because cd is a shell builtin.
-GNAR_CADDY_RELOAD='docker compose -f /srv/stack/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
+FF_CADDY_RELOAD='docker compose -f /srv/stack/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
 
 # Shared awk program for Caddyfile edits. Drops generated site blocks
-# whose address line equals a1 or a2, and (when $GNAR_BLOCK is non-empty)
+# whose address line equals a1 or a2, and (when $FF_BLOCK is non-empty)
 # inserts it right after the line equal to marker, appending at EOF if
 # no marker line exists. The block travels via ENVIRON, not -v: -v
 # mangles backslashes and BSD awk rejects newlines in -v values.
@@ -325,8 +320,8 @@ GNAR_CADDY_RELOAD='docker compose -f /srv/stack/docker-compose.yml exec -T caddy
 # precise for anything these helpers wrote; a hand-added block is only
 # at risk if it reuses a generated address line AND indents its closing
 # brace — don't do that.
-_GNAR_CADDY_AWK='
-BEGIN { n = 0; skip = 0; ins = 0; block = ENVIRON["GNAR_BLOCK"] }
+_FF_CADDY_AWK='
+BEGIN { n = 0; skip = 0; ins = 0; block = ENVIRON["FF_BLOCK"] }
 skip { if ($0 == "}") skip = 0; next }
 (a1 != "" && $0 == a1) || (a2 != "" && $0 == a2) {
     if (n > 0 && lines[n] ~ /^# (private|public)( static)?: /) n--
@@ -343,20 +338,20 @@ END {
     if (block != "" && ins == 0) print block
 }'
 
-# Rewrite $GNAR_CADDYFILE through $_GNAR_CADDY_AWK. Builds the result in
+# Rewrite $FF_CADDYFILE through $_FF_CADDY_AWK. Builds the result in
 # a temp file and sudo-cp's it over the live file, so a failed edit never
 # leaves it half-written. Usage:
-#   _gnar_caddy_rewrite <marker-line> <block> <addr1> [addr2]
-_gnar_caddy_rewrite() {
+#   _ff_caddy_rewrite <marker-line> <block> <addr1> [addr2]
+_ff_caddy_rewrite() {
     local tmp
     tmp=$(mktemp) || return 1
-    if ! sudo env "GNAR_BLOCK=$2" awk -v marker="$1" -v a1="$3" -v a2="${4:-}" \
-            "$_GNAR_CADDY_AWK" "$GNAR_CADDYFILE" > "$tmp" \
+    if ! sudo env "FF_BLOCK=$2" awk -v marker="$1" -v a1="$3" -v a2="${4:-}" \
+            "$_FF_CADDY_AWK" "$FF_CADDYFILE" > "$tmp" \
         || [ ! -s "$tmp" ]; then
         rm -f "$tmp"
         return 1
     fi
-    sudo cp "$tmp" "$GNAR_CADDYFILE" || { rm -f "$tmp"; return 1; }
+    sudo cp "$tmp" "$FF_CADDYFILE" || { rm -f "$tmp"; return 1; }
     rm -f "$tmp"
 }
 
@@ -366,10 +361,10 @@ _gnar_caddy_rewrite() {
 #   caddy not running → KEEP the edit (it may well be valid), drop the
 #                       backup, tell the user to start the stack
 #   config rejected   → show caddy's error, restore the backup
-_gnar_caddy_reload() {
+_ff_caddy_reload() {
     local backup=$1
     local out
-    if out=$(eval "sudo $GNAR_CADDY_RELOAD" 2>&1); then
+    if out=$(eval "sudo $FF_CADDY_RELOAD" 2>&1); then
         sudo rm -f "$backup"
         return 0
     fi
@@ -381,34 +376,34 @@ _gnar_caddy_reload() {
     fi
     echo "Caddy rejected the config — rolling back. Reload output:"
     printf '%s\n' "$out"
-    sudo mv "$backup" "$GNAR_CADDYFILE"
+    sudo mv "$backup" "$FF_CADDYFILE"
     return 1
 }
 
 # Insert a site block after a marker line and reload caddy. The backup
 # is taken BEFORE any mutation (including the replace-existing delete)
 # and restored if caddy rejects the result.
-#   _gnar_caddy_append <MARKER-NAME> <block> [existing-address-line]
+#   _ff_caddy_append <MARKER-NAME> <block> [existing-address-line]
 # MARKER-NAME is PRIVATE-SITES or PUBLIC-SITES (the
 # "# -------- MARKER-NAME --------" lines in the Caddyfile); if the
 # marker line is missing the block is appended at EOF instead.
 # existing-address-line, when given, replaces any previously generated
-# block starting with that exact line (see _GNAR_CADDY_AWK).
-_gnar_caddy_append() {
+# block starting with that exact line (see _FF_CADDY_AWK).
+_ff_caddy_append() {
     local marker="# -------- $1 --------"
     local block=$2
     local existing=${3:-}
-    local backup="$GNAR_CADDYFILE.backup.$(date +%Y%m%d_%H%M%S)"
+    local backup="$FF_CADDYFILE.backup.$(date +%Y%m%d_%H%M%S)"
 
-    sudo cp "$GNAR_CADDYFILE" "$backup" || return 1
+    sudo cp "$FF_CADDYFILE" "$backup" || return 1
 
-    if ! _gnar_caddy_rewrite "$marker" "$block" "$existing"; then
+    if ! _ff_caddy_rewrite "$marker" "$block" "$existing"; then
         echo "Failed to edit Caddyfile — live copy untouched"
         sudo rm -f "$backup"
         return 1
     fi
 
-    _gnar_caddy_reload "$backup"
+    _ff_caddy_reload "$backup"
 }
 
 # --- Private vhost on :80 (tailnet) -----------------------------------------
@@ -433,18 +428,18 @@ add-site() {
 
     local block
     if [[ "$target" =~ ^[0-9]+$ ]]; then
-        block=$(printf '\n# private: %s\n%s.local:80 {\n    import gnar_access_log\n    reverse_proxy host.docker.internal:%s\n}' \
+        block=$(printf '\n# private: %s\n%s.local:80 {\n    import ff_access_log\n    reverse_proxy host.docker.internal:%s\n}' \
             "$name" "$name" "$target")
-        _gnar_caddy_append PRIVATE-SITES "$block" "$name.local:80 {" \
+        _ff_caddy_append PRIVATE-SITES "$block" "$name.local:80 {" \
             && echo "Private site: http://$name.local → host:$target"
     else
         if [ ! -d "$target" ]; then
             echo "Directory $target does not exist"
             return 1
         fi
-        block=$(printf '\n# private static: %s\n%s.local:80 {\n    import gnar_access_log\n    root * %s\n    file_server\n}' \
+        block=$(printf '\n# private static: %s\n%s.local:80 {\n    import ff_access_log\n    root * %s\n    file_server\n}' \
             "$name" "$name" "$target")
-        _gnar_caddy_append PRIVATE-SITES "$block" "$name.local:80 {" \
+        _ff_caddy_append PRIVATE-SITES "$block" "$name.local:80 {" \
             && echo "Private static: http://$name.local → $target"
         echo "Note: $target must be bind-mounted into the caddy container (edit /srv/stack/docker-compose.yml)."
     fi
@@ -474,18 +469,18 @@ add-public-site() {
 
     local block
     if [[ "$target" =~ ^[0-9]+$ ]]; then
-        block=$(printf '\n# public: %s\nhttp://%s:8080 {\n    import gnar_access_log\n    reverse_proxy host.docker.internal:%s\n}' \
+        block=$(printf '\n# public: %s\nhttp://%s:8080 {\n    import ff_access_log\n    reverse_proxy host.docker.internal:%s\n}' \
             "$host" "$host" "$target")
-        _gnar_caddy_append PUBLIC-SITES "$block" "http://$host:8080 {" \
+        _ff_caddy_append PUBLIC-SITES "$block" "http://$host:8080 {" \
             && echo "Public site: https://$host → host:$target (via tunnel)"
     else
         if [ ! -d "$target" ]; then
             echo "Directory $target does not exist"
             return 1
         fi
-        block=$(printf '\n# public static: %s\nhttp://%s:8080 {\n    import gnar_access_log\n    root * %s\n    file_server\n}' \
+        block=$(printf '\n# public static: %s\nhttp://%s:8080 {\n    import ff_access_log\n    root * %s\n    file_server\n}' \
             "$host" "$host" "$target")
-        _gnar_caddy_append PUBLIC-SITES "$block" "http://$host:8080 {" \
+        _ff_caddy_append PUBLIC-SITES "$block" "http://$host:8080 {" \
             && echo "Public static: https://$host → $target (via tunnel)"
         echo "Note: $target must be bind-mounted into the caddy container (edit /srv/stack/docker-compose.yml)."
     fi
@@ -498,9 +493,9 @@ add-public-site() {
 #
 # Each preview is one fragment file under /srv/stack/preview-handles/<name>.caddy
 # imported into the wildcard HTTPS block in /srv/stack/Caddyfile.
-GNAR_PREVIEW_HANDLES=/srv/stack/preview-handles
+FF_PREVIEW_HANDLES=/srv/stack/preview-handles
 
-_gnar_preview_apex() {
+_ff_preview_apex() {
     local apex
     apex=$(awk -F= '/^PREVIEW_APEX=/{print $2}' /srv/stack/.env 2>/dev/null \
         | tr -d "\"' ")
@@ -509,7 +504,7 @@ _gnar_preview_apex() {
 
 add-preview-site() {
     if [ -z "$1" ]; then
-        local apex; apex=$(_gnar_preview_apex)
+        local apex; apex=$(_ff_preview_apex)
         echo "Usage: add-preview-site <name> [port|directory]"
         echo "Examples:"
         echo "  add-preview-site hello /srv/projects/hello-world"
@@ -535,12 +530,12 @@ add-preview-site() {
     fi
 
     local apex
-    apex=$(_gnar_preview_apex)
+    apex=$(_ff_preview_apex)
     local host="$name.$apex"
-    local handle_file="$GNAR_PREVIEW_HANDLES/$name.caddy"
+    local handle_file="$FF_PREVIEW_HANDLES/$name.caddy"
     local backup_file=""
 
-    sudo mkdir -p "$GNAR_PREVIEW_HANDLES"
+    sudo mkdir -p "$FF_PREVIEW_HANDLES"
     if sudo test -f "$handle_file"; then
         backup_file="$handle_file.backup.$(date +%Y%m%d_%H%M%S)"
         sudo cp "$handle_file" "$backup_file"
@@ -569,7 +564,7 @@ handle @$name {
 EOF
     fi
 
-    if eval "sudo $GNAR_CADDY_RELOAD"; then
+    if eval "sudo $FF_CADDY_RELOAD"; then
         echo "Preview: https://$host → $target"
         [ -n "$backup_file" ] && sudo rm -f "$backup_file"
         return 0
@@ -589,41 +584,41 @@ remove-preview-site() {
         echo "Usage: remove-preview-site <name>"
         return 1
     fi
-    local handle_file="$GNAR_PREVIEW_HANDLES/$1.caddy"
+    local handle_file="$FF_PREVIEW_HANDLES/$1.caddy"
     if ! sudo test -f "$handle_file"; then
         echo "No preview at $handle_file"
         return 1
     fi
     sudo rm -f "$handle_file"
-    eval "sudo $GNAR_CADDY_RELOAD" && echo "Removed preview: $1"
+    eval "sudo $FF_CADDY_RELOAD" && echo "Removed preview: $1"
 }
 
 list-preview-sites() {
-    local apex; apex=$(_gnar_preview_apex)
-    if ! sudo test -d "$GNAR_PREVIEW_HANDLES"; then
+    local apex; apex=$(_ff_preview_apex)
+    if ! sudo test -d "$FF_PREVIEW_HANDLES"; then
         echo "No previews."
         return
     fi
-    for f in $(sudo find "$GNAR_PREVIEW_HANDLES" -maxdepth 1 -name '*.caddy' 2>/dev/null); do
+    for f in $(sudo find "$FF_PREVIEW_HANDLES" -maxdepth 1 -name '*.caddy' 2>/dev/null); do
         local name; name=$(basename "$f" .caddy)
         printf "  https://%s.%s\n" "$name" "$apex"
     done
 }
 
 list-sites() {
-    if [ ! -f "$GNAR_CADDYFILE" ]; then
-        echo "No Caddyfile at $GNAR_CADDYFILE"
+    if [ ! -f "$FF_CADDYFILE" ]; then
+        echo "No Caddyfile at $FF_CADDYFILE"
         return
     fi
     # Capture first — `grep | sed || echo` never fires the echo, because
     # sed exits 0 even when grep matched nothing.
     local out
     echo "Private (tailnet):"
-    out=$(sudo grep -E "^[a-zA-Z0-9.-]+\.local:80 \{" "$GNAR_CADDYFILE" 2>/dev/null \
+    out=$(sudo grep -E "^[a-zA-Z0-9.-]+\.local:80 \{" "$FF_CADDYFILE" 2>/dev/null \
         | sed 's/ {//;s/^/  /')
     if [ -n "$out" ]; then printf '%s\n' "$out"; else echo "  (none)"; fi
     echo "Public (cloudflared):"
-    out=$(sudo grep -E "^http://[a-zA-Z0-9.-]+:8080 \{" "$GNAR_CADDYFILE" 2>/dev/null \
+    out=$(sudo grep -E "^http://[a-zA-Z0-9.-]+:8080 \{" "$FF_CADDYFILE" 2>/dev/null \
         | sed 's| {||;s|^http://|  |')
     if [ -n "$out" ]; then printf '%s\n' "$out"; else echo "  (none)"; fi
 }
@@ -641,11 +636,11 @@ remove-site() {
         return 1
     fi
 
-    local backup="$GNAR_CADDYFILE.backup.$(date +%Y%m%d_%H%M%S)"
-    sudo cp "$GNAR_CADDYFILE" "$backup" || return 1
+    local backup="$FF_CADDYFILE.backup.$(date +%Y%m%d_%H%M%S)"
+    sudo cp "$FF_CADDYFILE" "$backup" || return 1
 
-    # Deletes only exact generated blocks — see _GNAR_CADDY_AWK.
-    if ! _gnar_caddy_rewrite "" "" "$name.local:80 {" "http://$name:8080 {"; then
+    # Deletes only exact generated blocks — see _FF_CADDY_AWK.
+    if ! _ff_caddy_rewrite "" "" "$name.local:80 {" "http://$name:8080 {"; then
         echo "Failed to edit Caddyfile — live copy untouched"
         sudo rm -f "$backup"
         return 1
@@ -653,7 +648,7 @@ remove-site() {
     # Note: preview subdomains live in /srv/stack/preview-handles/<name>.caddy,
     # not in the Caddyfile. Use `remove-preview-site` for those.
 
-    _gnar_caddy_reload "$backup" && echo "Removed $name from Caddy"
+    _ff_caddy_reload "$backup" && echo "Removed $name from Caddy"
 }
 
 test-caddy() {
@@ -845,10 +840,8 @@ VITE
 
 # ----- Help search via fzf -----
 
-alias gnar-aliases='alias | fzf --height=80% --prompt="aliases > "'
-alias gnar-functions='print -l ${(ok)functions} | grep -v "^_" | fzf --preview "which {}" --height=80% --prompt="functions > "'
+alias ff-aliases='alias | fzf --height=80% --prompt="aliases > "'
+alias ff-functions='print -l ${(ok)functions} | grep -v "^_" | fzf --preview "which {}" --height=80% --prompt="functions > "'
 
 # ----- Quick directory shortcuts -----
 
-alias projects="cd ~/projects"
-alias downloads="cd ~/Downloads"

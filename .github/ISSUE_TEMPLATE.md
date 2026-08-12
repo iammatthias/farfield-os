@@ -19,7 +19,7 @@ assignees: ''
 ## System Information
 <!-- For bug reports, please provide: -->
 - Arch Linux version (`uname -a`):
-- GNAR version / commit:
+- farfield os version / commit:
 - Shell:
 - Terminal / SSH client:
 

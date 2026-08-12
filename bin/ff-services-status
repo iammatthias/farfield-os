@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — service + Caddy-site health for the dashboard pane.
+# farfield os — service + Caddy-site health for the dashboard pane.
 #
 # Host services run via systemd. The container stack (tailscale + caddy +
 # cloudflared) lives under /srv/stack and is reported
@@ -16,7 +16,7 @@ dot() {
 }
 
 printf '\033[1;36m═══ Host services ═══\033[0m\n'
-for svc in docker postgresql valkey fail2ban ufw gnar-stack; do
+for svc in docker postgresql valkey fail2ban ufw ff-stack; do
     state=$(systemctl is-active "$svc" 2>/dev/null) || true
     state=${state:-unknown}
     printf '  '; dot "$state"; printf ' %-26s %s\n' "$svc" "$state"

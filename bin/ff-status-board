@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — unified status board: fallback lower pane for gnar-dashboard.
+# farfield os — unified status board: fallback lower pane for ff-dashboard.
 #
 # One renderer laying host services, containers and Caddy sites into
 # three aligned columns. btop owns the upper pane. A grid — rather than
@@ -7,7 +7,7 @@
 # a glance instead of feeling cramped, and there are no pane seams to
 # clash.
 #
-# Self-refreshes from gnar-dashboard's pane loop; also runs one-shot.
+# Self-refreshes from ff-dashboard's pane loop; also runs one-shot.
 # Columns size to the terminal width, so it adapts to any pane size.
 
 set -uo pipefail
@@ -59,7 +59,7 @@ leftpad=$(( (cols - (3 * cellw + 2 * gap)) / 2 ))
 
 # --- gather: host services -------------------------------------------------
 c1=()
-for s in docker postgresql valkey fail2ban ufw gnar-stack; do
+for s in docker postgresql valkey fail2ban ufw ff-stack; do
     st=$(systemctl is-active "$s" 2>/dev/null || true)
     st=${st:-unknown}
     c1+=( "${st}${US}${s}${US}${st}" )

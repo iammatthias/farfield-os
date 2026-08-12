@@ -1,12 +1,12 @@
 #!/bin/bash
-# gnar-kiosk-shot [out.png] — screenshot the kiosk display.
+# ff-kiosk-shot [out.png] — screenshot the kiosk display.
 #
 # Works from any shell (including plain ssh): borrows the Wayland
 # session env from a running foot tile and shoots with grim.
 set -euo pipefail
 
-out=${1:-/tmp/gnar-kiosk.png}
-pid=$(pgrep -x foot | head -1) || { echo "gnar-kiosk-shot: no kiosk session" >&2; exit 1; }
+out=${1:-/tmp/ff-kiosk.png}
+pid=$(pgrep -x foot | head -1) || { echo "ff-kiosk-shot: no kiosk session" >&2; exit 1; }
 
 env_of() { tr '\0' '\n' < "/proc/$pid/environ" | grep "^$1=" | cut -d= -f2-; }
 WAYLAND_DISPLAY=$(env_of WAYLAND_DISPLAY) \

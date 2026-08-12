@@ -1,4 +1,4 @@
-# GNAR — caddy image with the Cloudflare DNS module compiled in.
+# farfield os — caddy image with the Cloudflare DNS module compiled in.
 #
 # Stock caddy:latest can't do ACME DNS-01, which is what we need for a
 # wildcard cert on $PREVIEW_APEX (LetsEncrypt won't issue wildcards via

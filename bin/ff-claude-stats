@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — Claude Code usage stats for the dashboard pane.
+# farfield os — Claude Code usage stats for the dashboard pane.
 #
 # Reads ~/.claude/projects/*/*.jsonl session transcripts. Each .jsonl line
 # is a message; assistant messages carry a `message.usage` field with

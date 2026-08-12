@@ -1,5 +1,5 @@
 [Unit]
-Description=GNAR container stack (tailscale + caddy + cloudflared)
+Description=farfield os container stack (tailscale + caddy + cloudflared)
 After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target

@@ -1,113 +1,69 @@
-# Configuration Guide
+# Configuration
 
-## TTY Console
+Customization recipes for a farfield os box. Every file the bootstrap
+installs is tracked in `configs/` — the durable way to change behavior is
+to edit there and re-run `sudo ./scripts/setup.sh` (or copy the file into
+place); one-off edits on the box work but drift from the repo.
 
-GNAR runs headless. If you sit at the physical console, configure TTY appearance:
+## Shell (`configs/zshrc` → `~/.zshrc`)
 
-```bash
-# Set console font (requires root)
-sudo setfont /usr/share/kbd/consolefonts/ter-132n.psf.gz
-
-# Make permanent by editing /etc/vconsole.conf
-echo 'FONT=ter-132n' | sudo tee -a /etc/vconsole.conf
-```
-
-## Enhanced Zsh Shell
-
-The setup creates a comprehensive `~/.zshrc` with 50+ aliases and smart functions. Customize further:
+Add machine-local tweaks at the bottom of `~/.zshrc`, or keep them in the
+repo if they're worth versioning. Highlights you may want to adjust:
 
 ```bash
-# Add personal aliases to ~/.zshrc
-alias myproject='cd ~/projects/myapp'
-alias serve='python -m http.server 8000'
-alias mylog='tail -f /var/log/myapp.log'
+# Prompt sections (Spaceship)
+SPACESHIP_DOCKER_SHOW=true
 
-# Custom functions
-function gitclone() {
-    git clone "$1" && cd "$(basename "$1" .git)"
-}
+# History (default 50k, shared across sessions)
+HISTSIZE=50000
 
-function ports() {
-    netstat -tulpn | grep LISTEN
-}
-
-# Environment variables
-export EDITOR=nvim
-export BROWSER=links  # text browser
-export PAGER=less
+# Pager — bat by default; export PAGER=less if you prefer plain
+export PAGER="bat"
 ```
 
-## Neovim
+The modern-CLI aliases (`ls`→eza, `cat`→bat, `tree`→`eza --tree`,
+`ports`→`ss -tulpn`) live in the ALIASES section of `configs/zshrc`.
 
-Create `~/.config/nvim/init.lua`:
+## Tmux (`configs/tmux.conf` → `~/.tmux.conf`)
 
-```lua
--- Basic settings
-vim.opt.number = true
-vim.opt.relativenumber = true
-vim.opt.expandtab = true
-vim.opt.shiftwidth = 2
-vim.opt.tabstop = 2
-vim.opt.mouse = 'a'
-vim.opt.clipboard = 'unnamedplus'
+The prefix is `Ctrl-a`. Keybindings are listed in `docs/helpers.md`; edit
+`configs/tmux.conf` to change them. No plugin manager is installed — the
+config is self-contained.
 
--- Dark colorscheme
-vim.cmd.colorscheme('habamax')
+## Kiosk dashboard
 
--- Key mappings
-vim.keymap.set('n', '<leader>w', ':w<CR>')
-vim.keymap.set('n', '<leader>q', ':q<CR>')
-vim.g.mapleader = ' '
-```
+- `configs/sway-config` — compositor: brand colors, gaps, tile rules.
+- `configs/foot.ini` — terminal: font (IBM Plex Mono, JetBrainsMono Nerd
+  fallback) and the farfield palette.
+- `configs/zprofile` — auto-starts sway on tty1 only when a display is
+  attached (`FF_KIOSK_FONT` scales with output resolution).
+- `board/src/main.rs` — the `ff-board` TUI itself; the palette constants
+  are near the top of the Rendering section.
 
-## Installing Additional Software
+`ff-display on|auto|off|status` controls display power;
+`ff-kiosk-restart` respawns the tiles after a config change.
+
+## Packages
+
+Edit the `pacman -S` blocks at the top of `scripts/setup.sh` and re-run
+setup (`--needed` makes it cheap). One-off installs on the box work too —
+they just won't be reproduced by a fresh bootstrap. Language toolchains
+are managed by their own tools (`uv`, `rustup`, `npm -g`, `gem`), not
+pacman.
+
+## Databases
+
+PostgreSQL and Valkey are host services:
 
 ```bash
-# Essential CLI tools for development
-sudo pacman -S bat eza ripgrep fd fzf jq
-
-# Development languages
-sudo pacman -S nodejs npm python python-pip go rust
-
-# Text browsers for TTY
-sudo pacman -S links lynx w3m
-
-# Database tools
-sudo pacman -S sqlite postgresql-clients
-
-# AUR helper (if needed)
-git clone https://aur.archlinux.org/yay.git
-cd yay && makepkg -si
+sudo systemctl status postgresql valkey
+psql            # aliased to psql as your user (superuser role created by setup)
+valkey-cli      # redis-compatible CLI
 ```
 
-## Custom Helpers
+## Ingress stack
 
-Create TTY-optimized scripts in `~/.local/bin/`:
-
-```bash
-mkdir -p ~/.local/bin
-
-# Quick note script
-cat > ~/.local/bin/note << 'EOF'
-#!/bin/bash
-echo "$(date '+%Y-%m-%d %H:%M'): $*" >> ~/notes.txt
-echo "Note saved: $*"
-EOF
-
-# System monitoring script
-cat > ~/.local/bin/sysmon << 'EOF'
-#!/bin/bash
-clear
-echo "=== System Monitor ==="
-echo "Load: $(uptime | cut -d',' -f3-)"
-echo "Memory: $(free -h | grep Mem | awk '{print $3"/"$2}')"
-echo "Disk: $(df -h / | tail -1 | awk '{print $3"/"$2" ("$5" used)"}')"
-echo "Processes: $(ps aux | wc -l)"
-EOF
-
-# Make executable
-chmod +x ~/.local/bin/*
-
-# Add to PATH in ~/.zshrc if not already there
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-```
+See `stack/README.md` and `HOSTING.md` on the box. The short version:
+`/srv/stack/Caddyfile` is live state — manage sites with `add-site`,
+`add-public-site`, `add-preview-site`, never by clobbering the file with
+repo boilerplate.

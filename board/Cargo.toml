@@ -1,8 +1,8 @@
 [package]
-name = "gnar-board"
+name = "ff-board"
 version = "0.1.0"
 edition = "2021"
-description = "GNAR kiosk board — flicker-free ratatui rendering of container charts + stack status"
+description = "farfield os kiosk board — flicker-free ratatui rendering of container charts + stack status"
 license = "MIT"
 
 [dependencies]

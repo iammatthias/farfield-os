@@ -1,11 +1,11 @@
 #!/bin/bash
-# GNAR — bootstrap a project directory for agent-assisted work.
+# farfield os — bootstrap a project directory for agent-assisted work.
 #
 # Creates the directory, drops a starter CLAUDE.md (the system context
 # Claude Code reads when working in the project), and git-inits it.
 #
-# Usage: gnar-project-init <path> [description]
-#   gnar-project-init /srv/projects/foo "backend API, FastAPI + Postgres"
+# Usage: ff-project-init <path> [description]
+#   ff-project-init /srv/projects/foo "backend API, FastAPI + Postgres"
 
 # set -e matters here: if mkdir fails, the `cd` below must not silently
 # no-op and git-init the caller's CWD.
@@ -16,10 +16,10 @@ DESCRIPTION=${2:-}
 
 if [ -z "$PROJECT_PATH" ]; then
     cat <<'USAGE'
-Usage: gnar-project-init <path> [description]
+Usage: ff-project-init <path> [description]
 
 Example:
-  gnar-project-init /srv/projects/foo "backend API, FastAPI + Postgres"
+  ff-project-init /srv/projects/foo "backend API, FastAPI + Postgres"
 USAGE
     exit 1
 fi

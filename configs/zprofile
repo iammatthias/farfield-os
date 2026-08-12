@@ -1,11 +1,11 @@
-# GNAR — auto-start the sway kiosk on tty1 when a display is plugged in.
+# farfield os — auto-start the sway kiosk on tty1 when a display is plugged in.
 #
 # Headless boxes never reach sway: the DRM-status check below short-circuits
 # when no monitor is connected. Plug a display into the server and on next
 # login this exec-launches the kiosk dashboard.
 #
 # sway (not mango) so the rack touchscreen actually works — it exposes
-# wl_touch, which foot turns into clicks for gnar-board's buttons. We scale
+# wl_touch, which foot turns into clicks for ff-board's buttons. We scale
 # the FONT to the resolution here so tile density stays legible.
 if [ -z "$DISPLAY$WAYLAND_DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ] && command -v sway &>/dev/null; then
     for _drm_status in /sys/class/drm/*/status; do
@@ -25,20 +25,20 @@ if [ -z "$DISPLAY$WAYLAND_DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ] && command -v
         else
             _size=14            # desk monitor
         fi
-        export GNAR_KIOSK_FONT="JetBrainsMono Nerd Font:size=$_size"
+        export FF_KIOSK_FONT="JetBrainsMono Nerd Font:size=$_size"
 
         # Pointer present? A touchscreen (rack LCD) or a mouse both mean the
-        # user can operate the on-screen action buttons, so gnar-board shows
+        # user can operate the on-screen action buttons, so ff-board shows
         # them. udev tags devices ID_INPUT_TOUCHSCREEN / ID_INPUT_MOUSE.
-        GNAR_TOUCH=
+        FF_TOUCH=
         for _ev in /sys/class/input/event*; do
             [ -e "$_ev" ] || continue
             _p="$(udevadm info -q property -p "$_ev" 2>/dev/null)"
             case "$_p" in
-                *ID_INPUT_TOUCHSCREEN=1* | *ID_INPUT_MOUSE=1*) GNAR_TOUCH=1; break ;;
+                *ID_INPUT_TOUCHSCREEN=1* | *ID_INPUT_MOUSE=1*) FF_TOUCH=1; break ;;
             esac
         done
-        export GNAR_TOUCH
+        export FF_TOUCH
 
         exec sway
     done

@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — spawn the six kiosk dashboard tiles and arrange them 3x2 under sway.
+# farfield os — spawn the six kiosk dashboard tiles and arrange them 3x2 under sway.
 #
 # Launched by sway's `exec` (see configs/sway-config). sway has no auto-grid,
 # so the grid is built explicitly: three columns across the top (cpu mem net),
@@ -8,7 +8,7 @@
 #   CPU   MEM         NET
 #   DISK  CONTAINERS  STATUS(OPS)
 #
-# Each tile runs `gnar-board <panel>` (single-panel mode) in a respawn loop so
+# Each tile runs `ff-board <panel>` (single-panel mode) in a respawn loop so
 # a crash never leaves a hole in the mosaic. A tap fullscreens a tile; the
 # fullscreen OPS view carries the action buttons.
 
@@ -16,11 +16,11 @@ set -u
 
 # Small displays (set by ~/.zprofile) override the foot font; unset → foot.ini.
 font_args=()
-[ -n "${GNAR_KIOSK_FONT:-}" ] && font_args=(--font="$GNAR_KIOSK_FONT")
+[ -n "${FF_KIOSK_FONT:-}" ] && font_args=(--font="$FF_KIOSK_FONT")
 
 launch() {
-    foot --app-id="gnar-$1" "${font_args[@]}" \
-         -e sh -c "while :; do gnar-board $1; sleep 2; done" &
+    foot --app-id="ff-$1" "${font_args[@]}" \
+         -e sh -c "while :; do ff-board $1; sleep 2; done" &
 }
 
 # Block until a panel's window is present in sway's tree, so the next
@@ -30,14 +30,14 @@ launch() {
 wait_win() {
     local p
     for _ in $(seq 1 30); do
-        p=$(swaymsg -t get_tree 2>/dev/null | grep -c "\"gnar-$1\"")
+        p=$(swaymsg -t get_tree 2>/dev/null | grep -c "\"ff-$1\"")
         [ "${p:-0}" -ge 1 ] && return 0
         sleep 0.2
     done
     return 1
 }
-tile_warn() { logger -t gnar-kiosk-tiles "gnar-$1 window never appeared — continuing; layout may be scrambled"; }
-focus() { swaymsg "[app_id=\"gnar-$1\"] focus" >/dev/null 2>&1; }
+tile_warn() { logger -t ff-kiosk-tiles "ff-$1 window never appeared — continuing; layout may be scrambled"; }
+focus() { swaymsg "[app_id=\"ff-$1\"] focus" >/dev/null 2>&1; }
 
 # Top row: three columns.
 launch cpu; wait_win cpu || tile_warn cpu

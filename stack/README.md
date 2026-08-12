@@ -1,4 +1,4 @@
-# GNAR stack
+# farfield os stack
 
 Single-host docker-compose for the network ingress surface.
 
@@ -46,7 +46,7 @@ docker compose pull               # newer base images
 docker compose down               # stop everything
 ```
 
-`gnar-stack.service` (a systemd system unit, installed by `setup.sh`) does
+`ff-stack.service` (a systemd system unit, installed by `setup.sh`) does
 `up -d` on boot.
 
 Never restart the `tailscale` container on its own — it owns the network
@@ -63,7 +63,7 @@ first boot, or:
 docker compose exec tailscale tailscale up
 ```
 
-`gnar-bootstrap` walks this (plus Claude Code login on the host).
+`ff-bootstrap` walks this (plus Claude Code login on the host).
 
 Until tailscale is logged in, its healthcheck stays unhealthy and
 caddy/cloudflared deliberately wait — they'd be joining a netns with no

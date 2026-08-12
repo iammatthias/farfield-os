@@ -1,4 +1,4 @@
-// GNAR Machine Report - Inspired by TR-100
+// farfield os machine report - Inspired by TR-100
 {
     "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
     "logo": null,
@@ -34,7 +34,7 @@
         },
         {
             "type": "custom",
-            "format": "│                  GNAR MACHINE REPORT                  │"
+            "format": "│                FARFIELD MACHINE REPORT                │"
         },
         {
             "type": "custom",

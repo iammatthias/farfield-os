@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — interactive post-install: tailscale auth, Claude Code login,
+# farfield os — interactive post-install: tailscale auth, Claude Code login,
 # optional gh + cloudflared. Idempotent.
 #
 # Run once after `sudo reboot` from setup.sh. Re-runnable any time —
@@ -20,7 +20,7 @@ EXEC_TS=("${COMPOSE[@]}" exec -T tailscale)
 # `docker compose exec` without -T is supposed to allocate a TTY, but in
 # practice (especially inside scripts) it often doesn't pass through stdin
 # correctly. Raw `docker exec -it` is more reliable.
-EXEC_TS_IT=(docker exec -it gnar-tailscale)
+EXEC_TS_IT=(docker exec -it ff-tailscale)
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -58,18 +58,18 @@ if [ ! -d "$STACK" ]; then
     exit 1
 fi
 
-if ! systemctl is-active --quiet gnar-stack; then
-    warn "gnar-stack.service inactive. Starting it now..."
-    sudo systemctl start gnar-stack
+if ! systemctl is-active --quiet ff-stack; then
+    warn "ff-stack.service inactive. Starting it now..."
+    sudo systemctl start ff-stack
 fi
 
 # Wait for compose services to be up (poll for ~2 min before giving up).
 for i in $(seq 1 24); do
-    if "${COMPOSE[@]}" ps --status running 2>/dev/null | grep -q gnar-tailscale; then
+    if "${COMPOSE[@]}" ps --status running 2>/dev/null | grep -q ff-tailscale; then
         ok "Stack is up"
         break
     fi
-    [ "$i" = 24 ] && { fail "Stack not running after 2 minutes. Check: sudo journalctl -fu gnar-stack"; exit 1; }
+    [ "$i" = 24 ] && { fail "Stack not running after 2 minutes. Check: sudo journalctl -fu ff-stack"; exit 1; }
     [ "$i" = 1 ]  && printf "%bWaiting for containers" "$DIM"
     printf "."
     sleep 5
@@ -91,7 +91,7 @@ else
     # flags").
     TS_HOSTNAME=$(sudo awk -F= '/^TS_HOSTNAME=/{print $2}' "$STACK/.env" 2>/dev/null \
         | tr -d "\"' ")
-    : "${TS_HOSTNAME:=gnar}"
+    : "${TS_HOSTNAME:=farfield}"
 
     warn "Tailscale isn't authenticated yet."
     info "A login URL will print below — open it on your laptop and approve the device."
@@ -109,7 +109,7 @@ else
     if [ -n "$TS_IP" ]; then
         ok "Authenticated. Tailnet IP: $TS_IP"
     else
-        warn "Tailscale auth didn't complete. Re-run gnar-bootstrap."
+        warn "Tailscale auth didn't complete. Re-run ff-bootstrap."
     fi
 fi
 
@@ -128,7 +128,7 @@ else
     if ask "Run claude now?"; then
         claude
     else
-        skip "Claude — re-run gnar-bootstrap later."
+        skip "Claude — re-run ff-bootstrap later."
     fi
 fi
 
@@ -174,7 +174,7 @@ if [ -n "${CF_TOKEN:-}" ]; then
         ok "cloudflared up. Add public sites with: add-public-site <host> <port>"
     fi
 else
-    skip "Set CLOUDFLARED_TOKEN in /srv/stack/.env and re-run gnar-bootstrap to enable."
+    skip "Set CLOUDFLARED_TOKEN in /srv/stack/.env and re-run ff-bootstrap to enable."
 fi
 
 # ---------------------------------------------------------------------------
@@ -187,13 +187,13 @@ TS_IP=${TS_IP:-$("${EXEC_TS[@]}" tailscale ip -4 2>/dev/null | tr -d '\r')}
 
 cat <<EOF
   Manage the box  ssh in, run \`claude\` (Claude Code, subscription auth)
-  Dashboard       gnar-dashboard (tmux) — or the kiosk on an attached display
-  Stack logs      sudo journalctl -fu gnar-stack
+  Dashboard       ff-dashboard (tmux) — or the kiosk on an attached display
+  Stack logs      sudo journalctl -fu ff-stack
                   cd $STACK && docker compose logs -f caddy
   Add a site      add-site <name> <port>           # private, tailnet
                   add-public-site <host> <port>    # public, via cloudflared
   Tailnet IP      $TS_IP
 
-If something's off, re-run \`gnar-bootstrap\` — it skips steps that are
+If something's off, re-run \`ff-bootstrap\` — it skips steps that are
 already done and re-prompts the ones that aren't.
 EOF

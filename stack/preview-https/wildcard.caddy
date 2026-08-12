@@ -8,7 +8,7 @@
 # these files and reloads caddy.
 
 {$PREVIEW_APEX}, *.{$PREVIEW_APEX} {
-    import gnar_access_log
+    import ff_access_log
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }

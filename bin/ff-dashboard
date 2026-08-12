@@ -1,18 +1,18 @@
 #!/bin/bash
-# GNAR — tmux dashboard: the ssh view of gnar-board.
+# farfield os — tmux dashboard: the ssh view of ff-board.
 #
-# One full-screen pane running `gnar-board` (full-board mode): host
+# One full-screen pane running `ff-board` (full-board mode): host
 # CPU/MEM/NET/DISK graphs, per-container sparklines, and stack status,
 # all diff-rendered so nothing flickers. The kiosk display doesn't use
-# this — sway tiles six single-panel gnar-board instances in a grid
+# this — sway tiles six single-panel ff-board instances in a grid
 # (see configs/sway-config); this tmux session is for looking at the
 # same board over ssh, where there's no compositor.
 #
-# Fallback (gnar-board not built — cargo missing at setup time): the
+# Fallback (ff-board not built — cargo missing at setup time): the
 # original btop + shell-board split, with buffered repaints to keep the
 # flicker down.
 #
-# `gnar-claude-stats` is the one-shot for Claude Code session stats.
+# `ff-claude-stats` is the one-shot for Claude Code session stats.
 #
 # Auto-attaches if the session already exists. Without a tty (e.g. over
 # plain ssh) it creates/refreshes the session detached.
@@ -35,16 +35,16 @@ loop() {  # loop <interval-seconds> <command>
     printf 'while :; do out=$(%s 2>&1); printf "\\033[H\\033[2J%%s\\n" "$out"; sleep %s; done' "$2" "$1"
 }
 
-if command -v gnar-board >/dev/null 2>&1; then
+if command -v ff-board >/dev/null 2>&1; then
     # Full-screen ratatui board. The respawn loop means a crash never
     # leaves a dead kiosk pane.
     tmux new-session -d -s "$SESSION" -n main -x "${COLUMNS:-232}" -y "${LINES:-55}" \
-        'while :; do gnar-board; sleep 2; done'
+        'while :; do ff-board; sleep 2; done'
 else
     # Fallback: btop + the shell boards.
     tmux new-session -d -s "$SESSION" -n main -x "${COLUMNS:-232}" -y "${LINES:-55}" 'btop'
-    tmux split-window -v -t "$SESSION:main" -l 44% "$(loop 10 gnar-metrics-board)"
-    tmux split-window -h -t "$SESSION:main.{bottom-left}" -l 50% "$(loop 30 gnar-status-board)"
+    tmux split-window -v -t "$SESSION:main" -l 44% "$(loop 10 ff-metrics-board)"
+    tmux split-window -h -t "$SESSION:main.{bottom-left}" -l 50% "$(loop 30 ff-status-board)"
     tmux select-pane  -t "$SESSION:main.{top-left}"
 fi
 tmux set-option   -t "$SESSION" status off

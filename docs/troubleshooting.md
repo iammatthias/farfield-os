@@ -1,146 +1,97 @@
 # Troubleshooting
 
-## TTY Issues
+## SSH
 
-### Console Font Problems
+### Every new connection drops at the handshake, existing sessions fine
+An openssh upgrade without an sshd restart — the old listener can't exec
+the new per-session binary. `ff-update` restarts sshd automatically after
+openssh upgrades; if you upgraded by hand, from any still-open session:
 ```bash
-# List available console fonts
-ls /usr/share/kbd/consolefonts/
+sudo systemctl try-restart sshd   # does NOT drop existing sessions
+```
+No open session? Physical console (or reboot).
 
-# Set larger font temporarily
-sudo setfont /usr/share/kbd/consolefonts/ter-132n.psf.gz
+### Typed input garbles / autocomplete breaks over ssh
+Your terminal's terminfo entry is missing on the box (Ghostty sends
+`TERM=xterm-ghostty`; setup installs `ghostty-terminfo`). Quick fix from
+the client for other terminals: `infocmp -x | ssh box 'tic -x -'`.
 
-# Make permanent
-echo 'FONT=ter-132n' | sudo tee /etc/vconsole.conf
+## Ingress stack
+
+```bash
+cd /srv/stack
+docker compose ps                  # tailscale must be healthy first —
+                                   # caddy + cloudflared join its netns
+docker compose logs tailscale caddy cloudflared --tail 50
 ```
 
-### TTY Not Accessible
+- **Everything down at once**: never restart the tailscale container
+  alone — caddy/cloudflared orphan when its netns dies. Always
+  `docker compose up -d` the whole stack (`ff-stack.service` does this at
+  boot).
+- **Caddy rejects config**: `test-caddy` validates; `caddy-status` tails
+  logs. Site helpers keep a `.bak` of the previous Caddyfile.
+- **Public site 502s**: check cloudflared is running and
+  `COMPOSE_PROFILES=cloudflared` is set in `/srv/stack/.env`.
+- **Container can't reach a host service**: host ports are proxied via
+  `host.docker.internal`; UFW must allow docker subnets
+  (`ufw allow from 172.16.0.0/12` — setup does this).
+
+## Kiosk dashboard
+
 ```bash
-# Switch between TTYs
-# Ctrl+Alt+F1 through Ctrl+Alt+F6
-
-# Check current TTY
-tty
-
-# If locked out, boot from USB and chroot to fix
+ff-kiosk-shot            # screenshot what the panel is showing (grim)
+ff-kiosk-restart         # respawn the six tiles
+ff-display status        # display power state
 ```
 
-## Tmux Issues
+- **Blank display**: `ff-display on` forces power on; presence daemon and
+  wake listener both fail-open, so a blank screen usually means sway
+  isn't running — check tty1 auto-login (`systemctl status getty@tty1`)
+  and `~/.zprofile`'s DRM guard.
+- **Tiles missing after an update**: `pkill -x ff-board` — the tiles
+  respawn; or `ff-kiosk-restart`.
 
-### Prefix Key Not Working
+## Tmux
+
+The prefix is **`Ctrl-a`** (not tmux's default `Ctrl-b`):
 ```bash
-# Test if keyboard input is working
-/usr/bin/cat -v
-# Press Ctrl+b, should show: ^B
-# Press Ctrl+c to exit
+echo $TMUX                      # confirm you're inside tmux
+tmux list-keys | grep -w C-a    # confirm the prefix bindings loaded
+```
+No plugin manager is installed — if `~/.tmux/plugins/` exists, something
+else put it there.
 
-# Check if you're actually in tmux
-echo $TMUX
-# Should show something like: /tmp/tmux-1000/default,1234,0
+## Zsh
 
-# Check tmux keybindings
-tmux list-keys | grep "C-b"
+```bash
+chmod 600 ~/.zsh_history        # history not saving
+chsh -s /usr/bin/zsh            # shell didn't change
+rm ~/.zcompdump*; exec zsh      # stale completion cache
 ```
 
-### Clean Config for Testing
+## System
+
 ```bash
-# Kill all tmux sessions
-tmux kill-server
-
-# Create minimal test config
-cat > ~/.tmux.conf.test << 'EOF'
-set -g prefix C-b
-bind C-b send-prefix
-set -g mouse on
-EOF
-
-# Test with minimal config
-tmux -f ~/.tmux.conf.test
-# Try: Ctrl+b then d (should detach)
+sudo pacman -Sy                 # refresh db if installs fail
+df -h /                         # disk space
+systemctl --failed              # anything red
+journalctl -p err -b            # errors this boot
 ```
 
-### Plugin Issues
-```bash
-# Check if plugins are installed
-ls -la ~/.tmux/plugins/
-
-# Install plugins manually
-# In tmux: Press Ctrl+b I (capital i)
-
-# If plugins break tmux, remove them
-rm -rf ~/.tmux/plugins/
-# Restart tmux - should work with built-in features
-```
-
-## Zsh Issues
-
-### History Not Working
-```bash
-# Check history file permissions
-ls -la ~/.zsh_history
-
-# Fix permissions
-chmod 600 ~/.zsh_history
-```
-
-### Shell Not Changing
-```bash
-# Verify zsh is installed
-which zsh
-
-# Check current shell
-echo $SHELL
-
-# Manually change shell
-chsh -s /usr/bin/zsh
-```
-
-## System Issues
-
-### Package Installation Fails
-```bash
-# Update package database
-sudo pacman -Sy
-
-# Clear package cache
-sudo pacman -Scc
-
-# Check disk space
-df -h
-```
-
-### Performance Issues
-```bash
-# Check running processes
-htop
-
-# Check system load
-uptime
-
-# Check memory usage
-free -h
-```
+When an update breaks the system on a btrfs root: reboot into the GRUB
+**Snapshots** submenu and boot the pre-transaction snapshot (snap-pac
+creates one around every pacman run).
 
 ## Recovery
 
-### Reset Configuration
+### Reset configuration
 ```bash
-# Backup current configs
-mkdir ~/config-backup
-cp -r ~/.config ~/config-backup/
-cp ~/.zshrc ~/config-backup/
-
-# Remove GNAR configs
-rm ~/.zshrc
-
-# Re-run setup
-cd ~/gnar
-sudo ./scripts/setup.sh
+cd ~/farfield-os
+sudo ./scripts/setup.sh         # re-applies configs (backs up ~/.zshrc first)
 ```
 
-### Emergency Shell Access
-If you have shell issues:
-1. Press `Ctrl+Alt+F2` to switch to different TTY
-2. Login with username/password
-3. Fix configuration issues
-4. Switch back with `Ctrl+Alt+F1`
+### Emergency console access
+1. `Ctrl+Alt+F2` for a spare TTY (tty1 belongs to the kiosk when a
+   display is attached)
+2. Log in, fix, switch back with `Ctrl+Alt+F1`

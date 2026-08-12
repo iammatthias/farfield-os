@@ -4,33 +4,74 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>online</title>
+    <link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+    <!-- farfield os default homepage — Deep Space field, one small signal.
+         Self-contained: system mono stack, no font CDN. -->
     <style>
         html, body {
             margin: 0;
             height: 100%;
-            background: #0a0a0a;
-            color: #d4d4d4;
-            font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            background: #0e222d;
+            color: #f3e5d1;
+            font: 14px/1.4 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         }
         main {
+            position: relative;
             height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            overflow: hidden;
+        }
+        /* signal in field — a point inside one thin circle */
+        .signal {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(243, 229, 209, 0.35);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        .dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
+        .signal i {
+            width: 4px;
+            height: 4px;
             border-radius: 50%;
-            background: #4ade80;
-            margin-right: 8px;
-            vertical-align: 1px;
-            box-shadow: 0 0 12px #4ade80;
+            background: #e59f67;
+            animation: beacon 8s ease-in-out infinite;
+        }
+        .status { letter-spacing: 0.02em; }
+        .meta {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #6a8699;
+        }
+        /* low horizon */
+        .horizon {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 22%;
+            border-top: 1px solid rgba(243, 229, 209, 0.14);
+        }
+        @keyframes beacon {
+            0%, 88%, 100% { opacity: 0.55; }
+            94% { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .signal i { animation: none; }
         }
     </style>
 </head>
 <body>
-    <main><span><span class="dot"></span>online</span></main>
+    <main>
+        <div class="horizon"></div>
+        <div class="signal"><i></i></div>
+        <div class="status">online</div>
+        <div class="meta">farfield os</div>
+    </main>
 </body>
 </html>

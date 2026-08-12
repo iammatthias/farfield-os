@@ -1,5 +1,5 @@
 #!/bin/bash
-# GNAR — presence-based display power for the kiosk (burn-in guard).
+# farfield os — presence-based display power for the kiosk (burn-in guard).
 #
 # Polls a computer-vision endpoint (state.json with live detection `boxes`
 # and enter/exit `events`) and sleeps the display when nobody has been seen
@@ -11,8 +11,8 @@
 #   - pipeline stale (`.age` too old, HTTP still up) -> on
 #   - daemon exits or is killed (trap)               -> on
 #   - boot grace: never sleeps in the first ABSENT_SECS after start
-# Manual control (gnar-display on|auto) and the tap override (a tap on the
-# dark panel wakes it for OVERRIDE_SECS — written by gnar-board) always win.
+# Manual control (ff-display on|auto) and the tap override (a tap on the
+# dark panel wakes it for OVERRIDE_SECS — written by ff-board) always win.
 #
 # Presence = a person box in the current frame (confidence >= CONF), OR a
 # new person enter/exit event since the previous poll. Event timestamps are
@@ -28,7 +28,7 @@ OVERRIDE_SECS=${OVERRIDE_SECS:-600} # tap keeps the display on this long
 CONF=${CONF:-0.5}                  # min detection confidence
 MAX_AGE=${MAX_AGE:-30}             # .age beyond this = stale pipeline
 
-DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnar-display
+DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ff-display
 mkdir -p "$DIR"
 
 once=${1:-}
@@ -47,23 +47,23 @@ fi
 
 power() { swaymsg "output * power $1" >/dev/null 2>&1; }
 
-# The state file is shared — gnar-board's tap-wake and gnar-display also
+# The state file is shared — ff-board's tap-wake and ff-display also
 # write it — so trust the file, not our own memory of what we last did.
-# Every actual transition lands in the systemd journal (tag gnar-display)
-# so wake/sleep history is auditable: `gnar-display log`.
+# Every actual transition lands in the systemd journal (tag ff-display)
+# so wake/sleep history is auditable: `ff-display log`.
 set_state() {
     local cur
     cur=$(cat "$DIR/state" 2>/dev/null || echo unknown)
     if [ "$1" != "$cur" ]; then
         power "$1"
         echo "$1" > "$DIR/state"
-        logger -t gnar-display "display $1 — ${2:-}"
+        logger -t ff-display "display $1 — ${2:-}"
     fi
 }
 
 # Whatever kills us, leave the display on.
-trap 'power on; echo on > "$DIR/state"; logger -t gnar-display "display on — presence daemon exited (fail open)"' EXIT
-logger -t gnar-display "presence daemon started (poll=${POLL}s absent=${ABSENT_SECS}s override=${OVERRIDE_SECS}s)"
+trap 'power on; echo on > "$DIR/state"; logger -t ff-display "display on — presence daemon exited (fail open)"' EXIT
+logger -t ff-display "presence daemon started (poll=${POLL}s absent=${ABSENT_SECS}s override=${OVERRIDE_SECS}s)"
 
 last_seen=$(date +%s)   # boot grace — assume presence at start
 prev_event_ts=""
@@ -78,7 +78,7 @@ while :; do
     want=on reason=""
 
     if [ "$mode" = "on" ]; then
-        reason="pinned (gnar-display on)"
+        reason="pinned (ff-display on)"
     elif [ -f "$DIR/override" ] && \
          [ $((now - $(stat -c %Y "$DIR/override" 2>/dev/null || echo 0))) -lt "$OVERRIDE_SECS" ]; then
         reason="tap override"
@@ -102,7 +102,7 @@ while :; do
                     last_seen=$now
                 fi
                 prev_event_ts=$newest_ts
-                # Push nudges (gnar-kiosk-wake-listener touches $DIR/push on
+                # Push nudges (ff-kiosk-wake-listener touches $DIR/push on
                 # each CV enter/exit datagram) count as presence too.
                 push_ts=$(stat -c %Y "$DIR/push" 2>/dev/null || echo 0)
                 [ "$push_ts" -gt "$last_seen" ] && last_seen=$push_ts

@@ -1,5 +1,5 @@
 #!/bin/bash
-# gnar-update [--yes|-y] — pacman -Syu + cache clean.
+# ff-update [--yes|-y] — pacman -Syu + cache clean.
 #
 # Interactive by default. --yes runs unattended AND under systemd-run,
 # so the upgrade survives a dropped ssh session — pacman dying mid-
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 if [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ]; then
-    UNIT=gnar-sysupgrade
+    UNIT=ff-sysupgrade
     echo "Updating system (unattended, via systemd-run)..."
     sudo systemctl reset-failed "$UNIT.service" 2>/dev/null || true
     sudo systemd-run --unit="$UNIT" pacman -Syu --noconfirm
@@ -26,7 +26,7 @@ if [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ]; then
     rc=$(systemctl show "$UNIT.service" -p ExecMainStatus --value)
     sudo systemctl reset-failed "$UNIT.service" 2>/dev/null || true
     if [ "${rc:-1}" != "0" ]; then
-        echo "gnar-update: upgrade FAILED (exit $rc) — see: journalctl -u $UNIT" >&2
+        echo "ff-update: upgrade FAILED (exit $rc) — see: journalctl -u $UNIT" >&2
         exit 1
     fi
 else

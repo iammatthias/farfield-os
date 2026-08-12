@@ -1,8 +1,8 @@
-# GNAR Helpers
+# farfield os helpers
 
-Quick reference for the aliases, functions, and tools that GNAR sets up.
-Run `gnar-help` on the box for a printed cheat sheet, or `gnar-aliases` /
-`gnar-functions` for an fzf-driven search.
+Quick reference for the aliases, functions, and tools that farfield os sets up.
+Run `ff-help` on the box for a printed cheat sheet, or `ff-aliases` /
+`ff-functions` for an fzf-driven search.
 
 ## Tmux
 
@@ -52,6 +52,8 @@ add-site <name> <port>         # reverse proxy: name.local:80 -> localhost:port
 add-site <name> /path/to/dir   # static files: name.local:80 serves dir
 add-public-site <host> <port>  # public site via the Cloudflare Tunnel connector
 add-preview-site <name> <port> # tailnet-private preview at <name>.$PREVIEW_APEX
+remove-preview-site <name>     # remove a preview site
+list-preview-sites             # list preview handles
 list-sites                     # list configured virtual hosts
 remove-site <name>             # remove a site block
 test-caddy                     # caddy validate (inside the container)
@@ -64,12 +66,13 @@ caddy-logs                     # docker compose logs -f caddy
 
 ## Kiosk dashboard (attached display)
 
-GNAR is headless by default, but `setup.sh` also installs **sway**
+farfield os is headless by default, but `setup.sh` also installs **sway**
 (Wayland compositor) + `foot` and configures `getty@tty1` to auto-log
 the user in. When a display is plugged into the box, on next login
-`~/.zprofile` exec's `sway`, and `gnar-kiosk-tiles` arranges the
-dashboard as **six tiles** — one foot window per `gnar-board` panel,
-in a 3×2 grid with gaps and Tokyo Night borders:
+`~/.zprofile` exec's `sway`, and `ff-kiosk-tiles` arranges the
+dashboard as **six tiles** — one foot window per `ff-board` panel,
+in a 3×2 grid with gaps and farfield-brand borders (Horizon orange on
+the focused tile):
 
 ```
 ╭ CPU ─────────╮ ╭ MEM ─────────╮ ╭ NET ─────────╮
@@ -89,8 +92,8 @@ exposes `wl_touch` — on a touch panel, tapping a tile fullscreens it
 (back button top-left), and the fullscreen OPS view carries on-screen
 action buttons (update / kiosk↻ / stack↻ / prune / reboot, two-tap
 confirm on the destructive ones). Each panel process only runs the
-samplers it displays. `gnar-board` (no args) renders the whole board
-in one terminal — that's what `gnar-dashboard` runs in tmux for ssh
+samplers it displays. `ff-board` (no args) renders the whole board
+in one terminal — that's what `ff-dashboard` runs in tmux for ssh
 sessions, where there's no compositor:
 
 Host metrics are sampled natively from `/proc` + `/sys` (CPU total +
@@ -99,11 +102,11 @@ hwmon temperature); container CPU/MEM sparklines + net rates come
 straight off the Docker socket every 2s. Rendering is diff-based —
 no flicker, no full repaints. `q` quits (the kiosk respawns it).
 
-If `gnar-board` isn't built (no cargo at setup time), the dashboard
-falls back to btop + the shell boards (`gnar-metrics-board` +
-`gnar-status-board`), which remain installed as one-shot CLIs.
+If `ff-board` isn't built (no cargo at setup time), the dashboard
+falls back to btop + the shell boards (`ff-metrics-board` +
+`ff-status-board`), which remain installed as one-shot CLIs.
 
-You can also run `gnar-dashboard` from any shell — it attaches the
+You can also run `ff-dashboard` from any shell — it attaches the
 same session if it already exists, or builds it. Run over plain ssh
 (no tty) it creates/refreshes the session detached, which is how you
 rebuild the kiosk layout remotely.
@@ -111,26 +114,31 @@ rebuild the kiosk layout remotely.
 The dashboard helpers are stand-alone too:
 
 ```bash
-gnar-metrics-board     # container CPU/MEM sparklines + net + host (one-shot)
-gnar-status-board      # the unified dashboard board (one-shot)
-gnar-services-status   # Caddy sites + service health (one-shot)
-gnar-docker-status     # docker containers + pm2 processes
-gnar-claude-stats      # Claude Code sessions + token usage
+ff-metrics-board     # container CPU/MEM sparklines + net + host (one-shot)
+ff-status-board      # the unified dashboard board (one-shot)
+ff-services-status   # Caddy sites + service health (one-shot)
+ff-docker-status     # docker containers + pm2 processes
+ff-claude-stats      # Claude Code sessions + token usage
+ff-deploy <name>     # git pull + rebuild a project under ~/projects
+ff-bootstrap         # interactive post-install (tailscale, claude login)
 ```
 
-`gnar-claude-stats` reads `~/.claude/projects/*/*.jsonl` to compute
+`ff-claude-stats` reads `~/.claude/projects/*/*.jsonl` to compute
 total token usage across all sessions, count active `claude` processes,
 and break down sessions by project. Token computation is skipped if
 total session data exceeds 50 MB.
 
 To swap the dashboard for something else, edit
-`~/.config/sway/config` and change the `exec` line:
+`~/.config/sway/config` and replace `exec ff-kiosk-tiles` with e.g.:
 
 ```
-exec foot --fullscreen -e gnar-dashboard
+exec foot --fullscreen -e ff-board       # whole board, one window
 exec foot --fullscreen -e btop
-exec foot --fullscreen -e tmux new -A -s dash
 ```
+
+`ff-kiosk-restart` re-applies the tile layout; `ff-kiosk-shot` grabs a
+screenshot of whatever the panel is showing (via grim); `ff-display
+on|auto|off|status` drives display power.
 
 In-sway keybindings (only matter if you walk up to the box):
 
@@ -191,9 +199,9 @@ system-status      # uptime, load, memory, disk, top procs, listening ports
 db-status          # postgresql + valkey systemd status + connection counts
 security-status    # ufw + fail2ban + sshd status
 port-check <port>  # is anything listening on this port?
-gnar-info          # fastfetch machine report (TR-100 style)
-gnar-update        # pacman -Syu + cache clean (--yes: unattended via systemd-run)
-gnar-help          # full alias / function reference
+ff-info          # fastfetch machine report (TR-100 style)
+ff-update        # pacman -Syu + cache clean (--yes: unattended via systemd-run)
+ff-help          # full alias / function reference
 ```
 
 ## File operations
@@ -201,9 +209,9 @@ gnar-help          # full alias / function reference
 ```bash
 ls / ll / la / lf / lt / tree     # eza variants (icons, --git, --tree, …)
 cat                                # bat (paged, syntax-highlighted)
-less / more                        # bat with paging
+less                               # bat with paging
 df / du / free                     # human-readable (-h)
-e / edit                           # nvim
+e                                  # nvim
 mkcd <dir>                         # mkdir + cd
 ```
 
@@ -214,7 +222,6 @@ mkcd <dir>                         # mkdir + cd
 ~                                  # cd ~
 -                                  # cd -
 cdp / cdd / cdt / cdl / cde        # ~/projects, ~/Downloads, /tmp, /var/log, /etc
-projects / downloads               # cd ~/projects, ~/Downloads
 up <n>                             # cd ../../… n times (function)
 ```
 
@@ -232,7 +239,7 @@ glog                               # git log --oneline --graph --decorate
 
 ```bash
 dkr      # docker
-dkc      # docker-compose
+dkc      # docker compose
 dkps     # docker ps
 dkpa     # docker ps -a
 dki      # docker images
@@ -248,7 +255,7 @@ yay-update / yay-install / yay-remove / yay-search / yay-info
 ## Misc
 
 ```bash
-ff / nf                # fastfetch
+ff                     # fastfetch
 myip                   # public IP (curl ifconfig.me)
 localip                # local IPv4 addresses
 ports                  # ss -tulpn
@@ -259,14 +266,14 @@ nmap-local             # nmap -sn 192.168.1.0/24
 nmap-scan              # nmap -sS -O -F
 lsof-port <port>       # lsof -i :<port>
 c                      # clear
-reload / r             # source ~/.zshrc
+reload                 # source ~/.zshrc
 ```
 
 ## Backup
 
 ```bash
-backup-system    # snapshot /etc/{caddy,ufw,fail2ban}, ~/.zshrc, ~/.tmux.conf,
-                 # ~/.config to ~/backups/<timestamp>
+backup-system    # snapshot /srv/stack/Caddyfile, /etc/{ssh,ufw,fail2ban},
+                 # ~/.zshrc, ~/.tmux.conf to ~/backups/<timestamp>
 ```
 
 ## Adding your own
@@ -280,4 +287,4 @@ of `~/.zshrc`:
 ```
 
 Editing `~/.zshrc` in place works fine — re-running `setup.sh` will back up
-the existing file as `~/.zshrc.gnar-backup.<timestamp>` before reinstalling.
+the existing file as `~/.zshrc.ff-backup.<timestamp>` before reinstalling.

@@ -1,44 +1,47 @@
 #!/bin/bash
-# GNAR command reference
+# farfield os command reference
 cat << 'EOF'
-=== GNAR Help ===
+=== farfield os Help ===
 
 Core
-  gnar-info                   System information (fastfetch)
-  gnar-update [--yes]         Update system (--yes: unattended, runs
+  ff-info                   System information (fastfetch)
+  ff-update [--yes]         Update system (--yes: unattended, runs
                               under systemd-run so ssh drops can't
                               kill pacman mid-transaction)
-  gnar-help                   This reference
-  gnar-dashboard              tmux session running the full gnar-board
+  ff-help                   This reference
+  ff-dashboard              tmux session running the full ff-board
                               (ssh view; the kiosk uses sway tiles)
-  gnar-board [panel]          Ratatui dashboard. No args = full board;
+  ff-board [panel]          Ratatui dashboard. No args = full board;
                               cpu|mem|net|disk|containers|status render
                               one panel (the kiosk runs six as sway
                               grid tiles). q quits.
-  gnar-metrics-board          Container CPU/MEM sparklines + net rates +
+  ff-metrics-board          Container CPU/MEM sparklines + net rates +
                               host line (one-shot fallback)
-  gnar-kiosk-restart          Gracefully restart the kiosk compositor
+  ff-status-board           Unified status board (one-shot fallback)
+  ff-docker-status          Docker containers + pm2 processes (one-shot)
+  ff-deploy <name> [ref]    git pull + rebuild a project under ~/projects
+  ff-kiosk-restart          Gracefully restart the kiosk compositor
                               (swaymsg exit; getty autologin respawns it)
-  gnar-kiosk-shot [out.png]   Screenshot the kiosk display via grim
-  gnar-display [on|auto|off|status|log [n]]
+  ff-kiosk-shot [out.png]   Screenshot the kiosk display via grim
+  ff-display [on|auto|off|status|log [n]]
                               Kiosk display power. Presence auto-sleep
-                              (gnar-kiosk-presence polls the CV box) is
+                              (ff-kiosk-presence polls the CV box) is
                               fail-open: API down = display on, tap
                               always wakes. `on` pins it; `auto` resumes;
                               `log` shows the journaled wake/sleep
                               transition history.
-  gnar-services-status        Caddy sites + service health (one-shot)
-  gnar-claude-stats           Claude Code session + token stats (one-shot)
-  gnar-project-init <path> [desc]
+  ff-services-status        Caddy sites + service health (one-shot)
+  ff-claude-stats           Claude Code session + token stats (one-shot)
+  ff-project-init <path> [desc]
                               Bootstrap a project dir: git init + a
                               starter CLAUDE.md for agent-assisted work.
-  gnar-bootstrap              Interactive post-install wizard:
+  ff-bootstrap              Interactive post-install wizard:
                               tailscale + claude login + optional
                               gh / cloudflared. Idempotent — re-run
                               any time.
 
 System info / status
-  ff, nf                      fastfetch
+  ff                          fastfetch
   myip                        Public IP
   localip                     Local IPv4 addresses
   ports                       Listening sockets (ss -tulpn)
@@ -53,6 +56,8 @@ Caddy
                               Public site via the Cloudflare Tunnel connector
   add-preview-site <name> [port|dir]
                               Tailnet-private preview at <name>.$PREVIEW_APEX
+  remove-preview-site <name>  Remove a preview site
+  list-preview-sites          List preview handles
   remove-site <name>          Remove site
   list-sites                  List configured sites
   test-caddy                  Validate Caddyfile
@@ -71,7 +76,7 @@ PM2
   pm2-status                  PM2 + Caddy sites
 
 Kiosk dashboard (attached display)
-  Auto-login + sway on tty1; tiles six gnar-board panels in a 3x2 grid.
+  Auto-login + sway on tty1; tiles six ff-board panels in a 3x2 grid.
   On a touch panel: tap a tile to fullscreen it (back button top-left);
   the fullscreen OPS view has action buttons (two-tap confirm on the
   destructive ones). Edit ~/.config/sway/config to change behavior.
@@ -80,10 +85,10 @@ Kiosk dashboard (attached display)
   Super+Shift+Q               Quit sway
 
 AI / LLM (Claude Code on the host)
-  Manage the box: ssh in, run `claude`. Auth once via gnar-bootstrap
-  (or `claude` → /login). Session stats: gnar-claude-stats.
+  Manage the box: ssh in, run `claude`. Auth once via ff-bootstrap
+  (or `claude` → /login). Session stats: ff-claude-stats.
   Stack lifecycle (tailscale + caddy + cloudflared):
-    sudo systemctl status gnar-stack
+    sudo systemctl status ff-stack
     cd /srv/stack && docker compose ps
     cd /srv/stack && docker compose logs -f caddy
     cd /srv/stack && docker compose pull && docker compose up -d --build
@@ -104,7 +109,7 @@ Tmux (prefix: Ctrl-a)
   Ctrl-a h/j/k/l              Navigate panes
 
 Docker
-  dkr / dkc                   docker / docker-compose
+  dkr / dkc                   docker / docker compose
   dkps / dkpa                 docker ps / ps -a
   dki                         docker images
   dkex <container>            docker exec -it
@@ -113,7 +118,7 @@ Files
   ll / la / lt / lf           eza variants
   tree                        eza --tree
   cat                         bat
-  e / edit                    nvim
+  e                           nvim
   mkcd <dir>                  mkdir + cd
 
 Git
@@ -127,8 +132,8 @@ Navigation
   up <n>                      cd up n levels (function)
 
 Help search
-  gnar-aliases                fzf over aliases
-  gnar-functions              fzf over functions
+  ff-aliases                fzf over aliases
+  ff-functions              fzf over functions
 
 Backup / scaffolding
   backup-system               Snapshot configs to ~/backups

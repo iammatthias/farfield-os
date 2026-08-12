@@ -1,6 +1,6 @@
-# GNAR Server
+# farfield os server
 
-This machine was bootstrapped by [GNAR](https://github.com/iammatthias/gnar).
+This machine was bootstrapped by [farfield os](https://github.com/iammatthias/farfield-os).
 It is a single-tenant home server intended for remote development over SSH.
 
 ## Available tooling
@@ -31,9 +31,9 @@ It is a single-tenant home server intended for remote development over SSH.
 - **Claude Code** (`claude`, npm-global) — the primary way this box is
   managed: ssh in, run `claude`. Subscription auth lives at `~/.claude/`.
   You are probably reading this file from inside such a session.
-- **New projects** — `gnar-project-init <path> [<description>]` creates
+- **New projects** — `ff-project-init <path> [<description>]` creates
   the dir, git-inits it, and drops a starter CLAUDE.md. App/service
-  checkouts live in `~/projects/<name>` (what `gnar-deploy` expects);
+  checkouts live in `~/projects/<name>` (what `ff-deploy` expects);
   `/srv/projects` is only for static content served by the caddy
   container via bind-mount (preview sites).
 
@@ -41,16 +41,16 @@ It is a single-tenant home server intended for remote development over SSH.
 The network ingress layer runs as a docker-compose stack at `/srv/stack`
 (not on host). Containers share the tailscale container's network
 namespace:
-- `gnar-tailscale` — tailnet identity, ingress
-- `gnar-caddy` — reverse proxy (`add-site <name> <port>` writes to
+- `ff-tailscale` — tailnet identity, ingress
+- `ff-caddy` — reverse proxy (`add-site <name> <port>` writes to
   `/srv/stack/Caddyfile` and reloads via `docker compose exec caddy
   caddy reload --config /etc/caddy/Caddyfile` — without `--config` the
   image's workdir has no Caddyfile and the reload errors out)
-- `gnar-cloudflared` — Cloudflare Tunnel connector for opt-in public
+- `ff-cloudflared` — Cloudflare Tunnel connector for opt-in public
   sites (`add-public-site`)
 
 Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
-`gnar-stack` systemd unit runs `docker compose up -d --build` at boot.
+`ff-stack` systemd unit runs `docker compose up -d --build` at boot.
 
 ### Databases
 - `postgresql` (systemd unit `postgresql`, default user matches `$USER`)
@@ -63,13 +63,13 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
 ### Display / kiosk dashboard
 - `sway` (Wayland) + `foot`. Headless by default. If a display is
   attached, `getty@tty1` auto-logs the user in and `~/.zprofile` exec's
-  `sway`, which tiles six `gnar-board <panel>` instances into a 3×2
+  `sway`, which tiles six `ff-board <panel>` instances into a 3×2
   grid (CPU/MEM/NET, DISK/CONTAINERS/OPS). On a touch panel, tapping a
   tile fullscreens it; the fullscreen OPS view has action buttons
   (update / kiosk↻ / stack↻ / prune / reboot, two-tap confirm).
-- Config: `~/.config/sway/config`; helpers: `gnar-kiosk-restart`,
-  `gnar-kiosk-shot [out.png]` (screenshot over ssh).
-- `gnar-dashboard` runs the same board as a tmux session over ssh.
+- Config: `~/.config/sway/config`; helpers: `ff-kiosk-restart`,
+  `ff-kiosk-shot [out.png]` (screenshot over ssh).
+- `ff-dashboard` runs the same board as a tmux session over ssh.
 
 ### Snapshots (btrfs only)
 - `snapper` + `snap-pac` — automatic pre/post snapshots for every
@@ -89,16 +89,16 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
 - `fail2ban` (sshd jail, 3 retries, 1h ban)
 - `nmap`, `tcpdump`, `wireshark-cli`
 
-## GNAR helpers (in PATH as `/usr/local/bin/gnar-*`)
+## farfield os helpers (in PATH as `/usr/local/bin/ff-*`)
 
-- `gnar-info`   — fastfetch system report
-- `gnar-update` — `pacman -Syu` + cache clean
-- `gnar-deploy <project>` — git-pull + rebuild a `~/projects/<project>` stack
-- `gnar-help`   — full alias / function reference
+- `ff-info`   — fastfetch system report
+- `ff-update` — `pacman -Syu` + cache clean
+- `ff-deploy <project>` — git-pull + rebuild a `~/projects/<project>` stack
+- `ff-help`   — full alias / function reference
 
 ## Useful shell shortcuts
 
-The full list is `gnar-help`, `gnar-aliases` (fzf), `gnar-functions` (fzf).
+The full list is `ff-help`, `ff-aliases` (fzf), `ff-functions` (fzf).
 Highlights:
 
 - Caddy: `add-site myapp 3000`, `list-sites`, `remove-site myapp`,
@@ -140,13 +140,13 @@ Highlights:
   previews are tailnet-private unless asked.
 - Don't modify `/srv/stack/docker-compose.yml` or `/srv/stack/Caddyfile`
   by hand inside a single agent turn; the user iterates the source-of-
-  truth in `~/gnar/stack/` and copies into `/srv/stack/`. If you want
+  truth in `~/farfield-os/stack/` and copies into `/srv/stack/`. If you want
   to change stack config, edit the repo and tell the user to pull.
 
 ## Conventions
 
 - New web services should live under `~/projects/<name>` and be exposed
-  via Caddy with `add-site <name> <port>`; `gnar-deploy <name>` pulls +
+  via Caddy with `add-site <name> <port>`; `ff-deploy <name>` pulls +
   rebuilds from there. `/srv/projects` is only for static content served
   by the caddy container via bind-mount (preview sites).
 - Long-running Node services use PM2. Use `pm2-add-site` to do both
@@ -158,6 +158,6 @@ Highlights:
 
 ## Reverting
 
-`sudo /path/to/gnar/scripts/uninstall.sh` reverts the GNAR configuration
+`sudo /path/to/farfield-os/scripts/uninstall.sh` reverts the farfield os configuration
 (stops services, restores stock sshd, backs up user configs as
-`*.gnar-backup.<timestamp>`). Pacman packages are not removed.
+`*.ff-backup.<timestamp>`). Pacman packages are not removed.

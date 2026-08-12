@@ -1,0 +1,3 @@
+#!/bin/bash
+# farfield os system information via fastfetch
+exec fastfetch

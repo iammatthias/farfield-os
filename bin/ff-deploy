@@ -1,23 +1,23 @@
 #!/bin/bash
-# gnar-deploy <project> — pull the latest commit for a project under
-# $GNAR_PROJECTS/<project> (default ~/projects) and rebuild its Docker
+# ff-deploy <project> — pull the latest commit for a project under
+# $FF_PROJECTS/<project> (default ~/projects) and rebuild its Docker
 # stack. Named volumes survive the rebuild, so data is preserved.
 #
-#   gnar-deploy myapp
+#   ff-deploy myapp
 #
-# GNAR_PROJECTS overrides the project root (default ~/projects).
+# FF_PROJECTS overrides the project root (default ~/projects).
 set -euo pipefail
 
 name="${1:-}"
 if [ -z "$name" ]; then
-    echo "usage: gnar-deploy <project>"
-    echo "  git-pulls \$GNAR_PROJECTS/<project> (default ~/projects) and rebuilds its docker compose stack"
+    echo "usage: ff-deploy <project>"
+    echo "  git-pulls \$FF_PROJECTS/<project> (default ~/projects) and rebuilds its docker compose stack"
     exit 1
 fi
 
-dir="${GNAR_PROJECTS:-$HOME/projects}/$name"
+dir="${FF_PROJECTS:-$HOME/projects}/$name"
 if [ ! -d "$dir/.git" ]; then
-    echo "gnar-deploy: $dir is not a git checkout" >&2
+    echo "ff-deploy: $dir is not a git checkout" >&2
     exit 1
 fi
 
@@ -33,7 +33,7 @@ for d in "$dir/deploy" "$dir"; do
     done
 done
 if [ -z "$compose_dir" ]; then
-    echo "gnar-deploy: no compose file (docker-compose.y[a]ml / compose.y[a]ml) found under $name" >&2
+    echo "ff-deploy: no compose file (docker-compose.y[a]ml / compose.y[a]ml) found under $name" >&2
     exit 1
 fi
 
