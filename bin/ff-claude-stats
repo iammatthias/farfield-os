@@ -23,7 +23,7 @@ fi
 # on shell aliases or subprocesses with "claude" in their name.
 # NB: procps `pgrep -c` prints 0 AND exits 1 on no match — an `|| echo 0`
 # here would yield "0\n0" and break the pane layout.
-active=$(pgrep -fc "@anthropic-ai/claude-code" 2>/dev/null)
+active=$(pgrep -fc "(^|/)claude( |$)|@anthropic-ai/claude-code" 2>/dev/null)
 active=${active:-0}
 
 projects=$(find "$PROJECTS_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)

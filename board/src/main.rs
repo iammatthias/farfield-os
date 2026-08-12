@@ -1112,7 +1112,7 @@ fn security_updates() -> Option<usize> {
 /// npm-global install path to avoid false-matching shell aliases.
 fn claude_runs() -> usize {
     Command::new("pgrep")
-        .args(["-fc", "@anthropic-ai/claude-code"])
+        .args(["-fc", r"(^|/)claude( |$)|@anthropic-ai/claude-code"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse().ok())
