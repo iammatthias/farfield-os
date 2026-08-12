@@ -16,7 +16,7 @@ personal home-server bootstrap, not a minimal TTY distribution.
 
 ## What You Get
 
-- **Kiosk Dashboard** — sway (Wayland) + foot tile six `ff-board` panels (CPU/MEM/NET, DISK/CONTAINERS/OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; `ff-dashboard` gives the same board over ssh in tmux
+- **Kiosk Dashboard** — sway (Wayland) + foot tile six `ff-board` panels (HOST, CLAUDE, NET / DISK, CONTAINERS, OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; `ff-dashboard` gives the same board over ssh in tmux
 - **Spaceship Prompt** — fast, informative Zsh prompt (git, runtimes, exec time)
 - **Zsh with Essential Plugins** — autosuggestions, syntax highlighting, completions
 - **Tmux as Default** — tiling terminal multiplexer, `Ctrl-a` prefix, vim keybindings

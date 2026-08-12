@@ -12,9 +12,9 @@ Core
   ff-dashboard              tmux session running the full ff-board
                               (ssh view; the kiosk uses sway tiles)
   ff-board [panel]          Ratatui dashboard. No args = full board;
-                              cpu|mem|net|disk|containers|status render
-                              one panel (the kiosk runs six as sway
-                              grid tiles). q quits.
+                              host|claude|net|disk|containers|status
+                              (also cpu|mem alone) render one panel (the
+                              kiosk runs six as sway grid tiles). q quits.
   ff-metrics-board          Container CPU/MEM sparklines + net rates +
                               host line (one-shot fallback)
   ff-status-board           Unified status board (one-shot fallback)

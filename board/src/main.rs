@@ -74,10 +74,12 @@ enum Mode {
     Full,
     Cpu,
     Mem,
+    Host, // cpu + mem stacked in one tile
     Net,
     Disk,
     Containers,
     Status,
+    Claude, // Claude Code activity on the box
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +331,9 @@ struct App {
     claude_runs: usize,  // live claude processes on the host
     claude_24h: usize,   // session transcripts touched in 24h (~/.claude)
     claude_total: usize, // total session transcripts
+    claude_authed: bool, // ~/.claude.json exists — the CLI has been signed in
+    claude_projects: Vec<(String, usize, u64)>, // (name, transcripts, last-touch epoch), newest first
+    claude_daily: VecDeque<f64>, // transcripts last-touched per day, 14 days, oldest first
     traffic: HashMap<String, Traffic>, // per-host 5-minute traffic + sparkline
     failed_units: Vec<String>,
     journal_errs: usize,
@@ -809,15 +814,15 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
     // network sync off the critical path and out of a multi-tile race.
     let shows_updates = matches!(mode, Mode::Full | Mode::Status);
     let shows_disk = matches!(mode, Mode::Full | Mode::Disk);
-    let shows_claude = matches!(mode, Mode::Full | Mode::Status);
+    let shows_claude = matches!(mode, Mode::Full | Mode::Status | Mode::Claude);
     // The 30s samples get the same treatment — sites/traffic/tailscale
     // render only in the NET tile, services/alerts/docker-ops only in OPS,
     // and the top-procs tables only in CPU/MEM. `Full` renders (nearly)
     // all of it, so it keeps sampling everything.
     let shows_sites = matches!(mode, Mode::Full | Mode::Net);
     let shows_ops = matches!(mode, Mode::Full | Mode::Status);
-    let shows_procs_cpu = matches!(mode, Mode::Full | Mode::Cpu);
-    let shows_procs_mem = matches!(mode, Mode::Full | Mode::Mem);
+    let shows_procs_cpu = matches!(mode, Mode::Full | Mode::Cpu | Mode::Host);
+    let shows_procs_mem = matches!(mode, Mode::Full | Mode::Mem | Mode::Host);
     let mut tick: u64 = 0;
     let mut log_offset: u64 = 0;
     let mut traffic_window: VecDeque<(f64, String, u16)> = VecDeque::new();
@@ -911,6 +916,9 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
         // Live claude processes on the host — cheap, every cycle for the
         // panels that show it.
         let claude = if shows_claude { Some(claude_runs()) } else { None };
+        // The dedicated CLAUDE tile gets the full activity scan (native
+        // metadata walk of ~/.claude/projects — no subprocesses).
+        let claude_detail = if mode == Mode::Claude { Some(claude_scan()) } else { None };
 
         {
             let mut a = lock_app(&app);
@@ -950,6 +958,13 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
             }
             if let Some(r) = claude {
                 a.claude_runs = r;
+            }
+            if let Some((projects, daily, authed, recent, total)) = claude_detail {
+                a.claude_projects = projects;
+                a.claude_daily = daily;
+                a.claude_authed = authed;
+                a.claude_24h = recent;
+                a.claude_total = total;
             }
         }
         // ---- end of the guarded cycle ----
@@ -1414,6 +1429,91 @@ fn claude_usage() -> (usize, usize) {
     (recent, total)
 }
 
+/// Full Claude Code activity scan for the CLAUDE tile: per-project
+/// transcript counts + last-touch times, a 14-day daily-activity strip,
+/// whether the CLI has ever been signed in, and the 24h/total counts.
+/// Pure fs::metadata walk of ~/.claude/projects — mtimes only, no
+/// transcript parsing, no subprocesses.
+fn claude_scan() -> (Vec<(String, usize, u64)>, VecDeque<f64>, bool, usize, usize) {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let authed = std::path::Path::new(&format!("{home}/.claude.json")).exists()
+        || std::path::Path::new(&format!("{home}/.claude/.credentials.json")).exists();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut projects: Vec<(String, usize, u64)> = Vec::new();
+    let mut daily = [0u64; 14];
+    let mut recent = 0usize;
+    let mut total = 0usize;
+    if let Ok(dirs) = std::fs::read_dir(format!("{home}/.claude/projects")) {
+        for dir in dirs.flatten() {
+            if !dir.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let raw = dir.file_name().to_string_lossy().to_string();
+            // Project dirs are slugged absolute paths ("-home-iam-farfield-os");
+            // strip the home prefix so the box's own checkouts read clean.
+            let name = raw
+                .strip_prefix(&format!("-{}-", home.trim_start_matches('/').replace('/', "-")))
+                .unwrap_or(raw.trim_start_matches('-'))
+                .to_string();
+            let mut count = 0usize;
+            let mut last = 0u64;
+            if let Ok(files) = std::fs::read_dir(dir.path()) {
+                for f in files.flatten() {
+                    if f.path().extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                        continue;
+                    }
+                    count += 1;
+                    let mtime = f
+                        .metadata()
+                        .ok()
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    last = last.max(mtime);
+                    let age = now.saturating_sub(mtime);
+                    if age < 86_400 {
+                        recent += 1;
+                    }
+                    let days = (age / 86_400) as usize;
+                    if days < 14 {
+                        daily[13 - days] += 1;
+                    }
+                }
+            }
+            total += count;
+            if count > 0 {
+                projects.push((name, count, last));
+            }
+        }
+    }
+    projects.sort_by(|a, b| b.2.cmp(&a.2));
+    projects.truncate(8);
+    (projects, daily.iter().map(|v| *v as f64).collect(), authed, recent, total)
+}
+
+/// "3m" / "5h" / "2d" since an epoch, or "—" for never.
+fn ago(epoch: u64) -> String {
+    if epoch == 0 {
+        return "—".into();
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let s = now.saturating_sub(epoch);
+    if s < 3600 {
+        format!("{}m", (s / 60).max(1))
+    } else if s < 86_400 {
+        format!("{}h", s / 3600)
+    } else {
+        format!("{}d", s / 86_400)
+    }
+}
+
 /// "Mon 2026-06-15" from the prune timer's next elapse, or "".
 fn prune_timer_next() -> String {
     Command::new("systemctl")
@@ -1861,6 +1961,8 @@ fn ui(frame: &mut Frame, app: &App, mode: Mode, touch: &mut Touch) {
     match mode {
         Mode::Cpu => render_cpu(frame, body, app, false),
         Mode::Mem => render_mem(frame, body, app, false),
+        Mode::Host => render_host(frame, body, app, false),
+        Mode::Claude => render_claude(frame, body, app, false),
         Mode::Net => render_net(frame, body, app, false),
         Mode::Disk => render_disk(frame, body, app, false),
         Mode::Containers => render_containers(frame, body, app, false),
@@ -1910,6 +2012,92 @@ fn ui_full(frame: &mut Frame, app: &App) {
     let [cont_a, stat_a] = Layout::horizontal([Constraint::Percentage(62), Constraint::Percentage(38)]).areas(lower);
     render_containers(frame, cont_a, app, true);
     render_status(frame, stat_a, app, false, true);
+}
+
+/// CPU + MEM stacked in one tile — the combined host panel.
+fn render_host(frame: &mut Frame, area: Rect, app: &App, bordered: bool) {
+    let [cpu_a, mem_a] =
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
+    render_cpu(frame, cpu_a, app, bordered);
+    render_mem(frame, mem_a, app, bordered);
+}
+
+/// Claude Code activity: live sessions, a 14-day activity strip, and the
+/// most recently touched projects. The box is managed by an agent over
+/// SSH, so this tile answers "who's been working here, and when".
+fn render_claude(frame: &mut Frame, area: Rect, app: &App, bordered: bool) {
+    let live = app.claude_runs > 0;
+    let mut title = vec![
+        Span::styled(" CLAUDE ", accent(C_OXIDE)),
+        Span::styled(
+            if live { "● ".to_string() } else { "○ ".to_string() },
+            Style::new().fg(if live { C_SIGNAL } else { C_DIM }),
+        ),
+        Span::styled(
+            if live {
+                format!("{} session{} live", app.claude_runs, if app.claude_runs == 1 { "" } else { "s" })
+            } else {
+                "idle".to_string()
+            },
+            if live { Style::new().fg(C_FG) } else { dim() },
+        ),
+    ];
+    if !app.claude_authed {
+        title.push(Span::styled(" · not signed in", Style::new().fg(C_SUN)));
+    }
+    let inner = panel(frame, area, bordered, title, None);
+    let w = inner.width as usize;
+
+    let mut lines: Vec<Line> = vec![Line::default()];
+    if !app.claude_authed && app.claude_total == 0 {
+        // Never used on this box — say so plainly, and say what to do.
+        lines.push(Line::from(Span::styled("   ⊙", Style::new().fg(C_SIGNAL))));
+        lines.push(Line::default());
+        lines.push(Line::styled("   claude code has never signed in here", dim()));
+        lines.push(Line::default());
+        lines.push(Line::from(vec![
+            Span::styled("   ssh in and run ", dim()),
+            Span::styled("claude", Style::new().fg(C_FG)),
+            Span::styled(" (or ff-bootstrap)", dim()),
+        ]));
+        frame.render_widget(Paragraph::new(lines), inner);
+        return;
+    }
+
+    lines.push(Line::from(vec![
+        Span::styled(format!("{} active 24h", app.claude_24h), Style::new().fg(C_MIST)),
+        Span::styled(format!(" · {} transcripts", app.claude_total), dim()),
+    ]));
+    let peak = app.claude_daily.iter().cloned().fold(1.0_f64, f64::max);
+    lines.push(Line::from(vec![
+        Span::styled("14d ", dim()),
+        Span::styled(
+            spark_abs(&app.claude_daily, w.saturating_sub(4).min(28), peak),
+            Style::new().fg(C_OXIDE),
+        ),
+    ]));
+    lines.push(Line::default());
+    lines.push(Line::styled("PROJECTS", accent(C_BLUE)));
+    if app.claude_projects.is_empty() {
+        lines.push(Line::styled("  no transcripts yet", dim()));
+    }
+    let namew = w.saturating_sub(14).clamp(10, 34);
+    for (name, count, last) in &app.claude_projects {
+        let shown: String = if name.len() > namew {
+            format!("…{}", &name[name.len() - (namew - 1)..])
+        } else {
+            name.clone()
+        };
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {shown:<namew$}"), Style::new().fg(C_MIST)),
+            Span::styled(format!(" ×{count:<3}"), dim()),
+            Span::styled(format!(" {:>3}", ago(*last)), dim()),
+        ]));
+        if lines.len() as u16 >= inner.height {
+            break;
+        }
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_cpu(frame: &mut Frame, cpu_a: Rect, app: &App, bordered: bool) {
@@ -2716,13 +2904,15 @@ fn main() -> std::io::Result<()> {
         None | Some("full") => Mode::Full,
         Some("cpu") => Mode::Cpu,
         Some("mem") => Mode::Mem,
+        Some("host") => Mode::Host,
+        Some("claude") => Mode::Claude,
         Some("net") => Mode::Net,
         Some("disk") => Mode::Disk,
         Some("containers") => Mode::Containers,
         Some("status") => Mode::Status,
         Some(other) => {
             eprintln!("ff-board: unknown panel '{other}'");
-            eprintln!("usage: ff-board [full|cpu|mem|net|disk|containers|status]");
+            eprintln!("usage: ff-board [full|host|cpu|mem|claude|net|disk|containers|status]");
             std::process::exit(2);
         }
     };
@@ -2731,7 +2921,7 @@ fn main() -> std::io::Result<()> {
 
     // Each panel only runs the samplers it displays — six sway tiles
     // shouldn't mean six docker pollers.
-    if matches!(mode, Mode::Full | Mode::Cpu | Mode::Mem | Mode::Net | Mode::Disk) {
+    if matches!(mode, Mode::Full | Mode::Cpu | Mode::Mem | Mode::Host | Mode::Net | Mode::Disk) {
         let a = app.clone();
         thread::spawn(move || host_loop(a));
     }
@@ -2750,7 +2940,7 @@ fn main() -> std::io::Result<()> {
         let a = app.clone();
         thread::spawn(move || status_loop(a, mode));
     }
-    if matches!(mode, Mode::Full | Mode::Cpu) {
+    if matches!(mode, Mode::Full | Mode::Cpu | Mode::Host) {
         let a = app.clone();
         thread::spawn(move || clock_loop(a));
     }

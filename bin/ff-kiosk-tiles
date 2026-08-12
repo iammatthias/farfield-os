@@ -2,11 +2,11 @@
 # farfield os — spawn the six kiosk dashboard tiles and arrange them 3x2 under sway.
 #
 # Launched by sway's `exec` (see configs/sway-config). sway has no auto-grid,
-# so the grid is built explicitly: three columns across the top (cpu mem net),
-# then each column is split into two rows (disk containers status below).
+# so the grid is built explicitly: three columns across the top (host claude
+# net), then each column is split into two rows (disk containers status).
 #
-#   CPU   MEM         NET
-#   DISK  CONTAINERS  STATUS(OPS)
+#   HOST(CPU+MEM)  CLAUDE      NET
+#   DISK           CONTAINERS  STATUS(OPS)
 #
 # Each tile runs `ff-board <panel>` (single-panel mode) in a respawn loop so
 # a crash never leaves a hole in the mosaic. A tap fullscreens a tile; the
@@ -40,13 +40,13 @@ tile_warn() { logger -t ff-kiosk-tiles "ff-$1 window never appeared — continui
 focus() { swaymsg "[app_id=\"ff-$1\"] focus" >/dev/null 2>&1; }
 
 # Top row: three columns.
-launch cpu; wait_win cpu || tile_warn cpu
-launch mem; wait_win mem || tile_warn mem
-launch net; wait_win net || tile_warn net
+launch host;   wait_win host   || tile_warn host
+launch claude; wait_win claude || tile_warn claude
+launch net;    wait_win net    || tile_warn net
 
 # Split each column into two rows (bottom-row panel under each top one).
-focus cpu; swaymsg splitv >/dev/null 2>&1; launch disk;       wait_win disk       || tile_warn disk
-focus mem; swaymsg splitv >/dev/null 2>&1; launch containers; wait_win containers || tile_warn containers
-focus net; swaymsg splitv >/dev/null 2>&1; launch status;     wait_win status     || tile_warn status
+focus host;   swaymsg splitv >/dev/null 2>&1; launch disk;       wait_win disk       || tile_warn disk
+focus claude; swaymsg splitv >/dev/null 2>&1; launch containers; wait_win containers || tile_warn containers
+focus net;    swaymsg splitv >/dev/null 2>&1; launch status;     wait_win status     || tile_warn status
 
 wait

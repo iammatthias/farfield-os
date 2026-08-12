@@ -75,9 +75,9 @@ in a 3×2 grid with gaps and farfield-brand borders (Horizon orange on
 the focused tile):
 
 ```
-╭ CPU ─────────╮ ╭ MEM ─────────╮ ╭ NET ─────────╮
-│ heat-gradient│ │ used graph + │ │ ↓↑ rates +   │
-│ graph + cores│ │ swap         │ │ peak graphs  │
+╭ HOST ────────╮ ╭ CLAUDE ──────╮ ╭ NET ─────────╮
+│ cpu heat +   │ │ live sessions│ │ ↓↑ rates +   │
+│ mem, stacked │ │ + projects   │ │ peak graphs  │
 ╰──────────────╯ ╰──────────────╯ ╰──────────────╯
 ╭ DISK ────────╮ ╭ CONTAINERS ──╮ ╭ STATUS ──────╮
 │ gauge + io   │ │ CPU/MEM      │ │ services ·   │

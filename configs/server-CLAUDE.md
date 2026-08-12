@@ -64,7 +64,7 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
 - `sway` (Wayland) + `foot`. Headless by default. If a display is
   attached, `getty@tty1` auto-logs the user in and `~/.zprofile` exec's
   `sway`, which tiles six `ff-board <panel>` instances into a 3×2
-  grid (CPU/MEM/NET, DISK/CONTAINERS/OPS). On a touch panel, tapping a
+  grid (HOST(cpu+mem)/CLAUDE/NET, DISK/CONTAINERS/OPS). On a touch panel, tapping a
   tile fullscreens it; the fullscreen OPS view has action buttons
   (update / kiosk↻ / stack↻ / prune / reboot, two-tap confirm).
 - Config: `~/.config/sway/config`; helpers: `ff-kiosk-restart`,

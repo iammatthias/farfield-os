@@ -13,7 +13,8 @@ Cloudflare Tunnel). Day-to-day management is Claude Code over SSH.
 
 It also installs sway (Wayland compositor) + foot so an optional attached
 display becomes a live kiosk dashboard (auto-login on tty1 → sway → six
-`ff-board <panel>` foot tiles arranged 3×2 by `ff-kiosk-tiles`;
+`ff-board <panel>` foot tiles — host(cpu+mem), claude, net / disk,
+containers, status — arranged 3×2 by `ff-kiosk-tiles`;
 `bin/ff-dashboard` runs the same board as a single tmux view for ssh
 sessions). The DRM-status guard in `~/.zprofile` is a no-op on truly
 headless boxes. sway is used (not a minimal dwl-style WM) because
