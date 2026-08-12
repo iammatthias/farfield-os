@@ -6,8 +6,8 @@ It is a single-tenant home server intended for remote development over SSH.
 ## Available tooling
 
 ### Shells / multiplexers
-- `zsh` (default shell, Spaceship prompt, Oh My Zsh)
-- `tmux` (prefix `Ctrl-a`, vim-style splits/navigation)
+- `zsh` (default shell; Zinit + a hand-rolled prompt, mirrors the user's Mac dotfiles)
+- `herdr` (persistent agent sessions — replaces tmux; `herdr` attaches, `herdr --remote` from other machines)
 
 ### Editors
 - `nvim`
@@ -69,7 +69,7 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
   (update / kiosk↻ / stack↻ / prune / reboot, two-tap confirm).
 - Config: `~/.config/sway/config`; helpers: `ff-kiosk-restart`,
   `ff-kiosk-shot [out.png]` (screenshot over ssh).
-- `ff-dashboard` runs the same board as a tmux session over ssh.
+- `ff-dashboard` runs the same board in the current terminal (run it inside herdr to persist).
 
 ### Snapshots (btrfs only)
 - `snapper` + `snap-pac` — automatic pre/post snapshots for every

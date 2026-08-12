@@ -39,7 +39,8 @@
 <p><strong>Opinionated home-server bootstrap for Arch Linux</strong></p>
 <p>A single setup script that turns a fresh Arch install into a home server
 for remote development over SSH — with an optional live dashboard if a
-display is attached. Spaceship + Zsh + Tmux, Docker, PostgreSQL + Valkey,
+display is attached. Zsh (Zinit, hand-rolled prompt) + herdr, Docker,
+PostgreSQL + Valkey,
 a full set of language runtimes, and a docker-compose stack
 (Tailscale + Caddy + Cloudflare Tunnel) that ships the network surface.
 Day-to-day management is Claude Code over SSH.</p>
@@ -81,10 +82,10 @@ personal home-server bootstrap, not a minimal TTY distribution.</p>
 </figure>
 <h2>What You Get</h2>
 <ul>
-<li><strong>Kiosk Dashboard</strong> — sway (Wayland) + foot tile six <code>ff-board</code> panels (HOST, CLAUDE, NET / DISK, CONTAINERS, OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; <code>ff-dashboard</code> gives the same board over ssh in tmux</li>
-<li><strong>Spaceship Prompt</strong> — fast, informative Zsh prompt (git, runtimes, exec time)</li>
-<li><strong>Zsh with Essential Plugins</strong> — autosuggestions, syntax highlighting, completions</li>
-<li><strong>Tmux as Default</strong> — tiling terminal multiplexer, <code>Ctrl-a</code> prefix, vim keybindings</li>
+<li><strong>Kiosk Dashboard</strong> — sway (Wayland) + foot tile six <code>ff-board</code> panels (HOST, CLAUDE, NET / DISK, CONTAINERS, OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; <code>ff-dashboard</code> gives the same board over ssh (run it inside herdr to persist)</li>
+<li><strong>Hand-Rolled Prompt</strong> — zsh-native (⊙ host · dir · git · duration · clock), no prompt binary</li>
+<li><strong>Zsh via Zinit</strong> — turbo-loaded fzf-tab, autosuggestions, syntax highlighting, history-substring-search; mirrors the maintainer&#39;s dotfiles</li>
+<li><strong>herdr Sessions</strong> — persistent agent terminals (<a href="https://herdr.dev">herdr.dev</a>); sessions survive ssh drops, attach from any device</li>
 <li><strong>Ingress stack</strong> — docker-compose at <code>/srv/stack/</code>: Tailscale (tailnet identity) + Caddy (reverse proxy, LE wildcard certs via DNS-01) + Cloudflare Tunnel (opt-in public sites). <code>git pull &amp;&amp; docker compose up -d --build</code> to update</li>
 <li><strong>PM2 Process Management</strong> — Node.js app process management</li>
 <li><strong>Database Support</strong> — PostgreSQL and Valkey (Redis-compatible)</li>
@@ -120,16 +121,15 @@ sudo ./scripts/setup.sh
 sudo reboot
 </code></pre>
 <p>After reboot, <code>ff-bootstrap</code> walks the interactive one-time steps
-(tailscale auth, Claude Code login), then start tmux:</p>
-<pre><code class="language-bash">tmux
+(tailscale auth, Claude Code login), then launch your persistent session:</p>
+<pre><code class="language-bash">herdr
 </code></pre>
 <h2>Core Features</h2>
-<h3>Spaceship Prompt</h3>
+<h3>Prompt</h3>
 <ul>
-<li>Shows git branch, status, and staging</li>
-<li>Displays active runtime environments (Node, Python, Ruby, etc.)</li>
-<li>Execution time for slow commands</li>
-<li>Clean, fast, and highly customizable</li>
+<li>Hand-rolled, zsh-native — no external prompt binary</li>
+<li>⊙ + hostname, truncated path, git branch/status, exec time ≥ 2s, clock</li>
+<li>Override anything from <code>~/.zshrc.local</code></li>
 </ul>
 <h3>Zsh Configuration</h3>
 <ul>
@@ -167,17 +167,16 @@ system context)</li>
 <pre><code class="language-bash">ff-info       # System information (fastfetch machine report)
 ff-update     # Update system (--yes for unattended via systemd-run)
 ff-help       # Full command reference
-ff-dashboard  # The kiosk board, in tmux, over ssh
+ff-dashboard  # The kiosk board in your terminal (persist it inside herdr)
 ff-deploy     # git pull + rebuild a project under ~/projects
 </code></pre>
-<h3>Tmux</h3>
-<pre><code class="language-bash">t              # Start tmux
-tn &lt;name&gt;      # New named session
-ta &lt;name&gt;      # Attach to session
-tl             # List sessions
-Ctrl-a v       # Split vertical
-Ctrl-a s       # Split horizontal
-Ctrl-a h/j/k/l # Navigate panes
+<h3>herdr</h3>
+<pre><code class="language-bash">t              # herdr — launch/attach the persistent session
+tn &lt;name&gt;      # named session
+ta &lt;name&gt;      # attach to a session
+tl             # list sessions
+tk &lt;name&gt;      # stop a session
+herdr --remote iam@&lt;host&gt;   # attach to this box from another machine
 </code></pre>
 <h3>Docker</h3>
 <pre><code class="language-bash">dkr             # docker
@@ -213,19 +212,15 @@ ll             # Long format
 tree           # Tree view (aliased to eza --tree)
 </code></pre>
 <h2>Configuration</h2>
-<h3>Spaceship Prompt</h3>
-<p>Edit <code>~/.zshrc</code> to customize the prompt:</p>
-<pre><code class="language-bash"># Show/hide sections
-SPACESHIP_NODE_SHOW=true
-SPACESHIP_PYTHON_SHOW=true
-SPACESHIP_DOCKER_SHOW=true
-
-# Customize symbols
-SPACESHIP_CHAR_SYMBOL=&quot;❯ &quot;
-SPACESHIP_GIT_BRANCH_PREFIX=&quot;&quot;
+<h3>Prompt</h3>
+<p>The prompt lives in <code>~/.config/zsh/prompt.zsh</code>; override any of it from
+<code>~/.zshrc.local</code> (sourced last):</p>
+<pre><code class="language-bash"># e.g. drop the clock
+RPROMPT=
 </code></pre>
-<h3>Tmux</h3>
-<p>Edit <code>~/.tmux.conf</code> for custom keybindings (the shipped prefix is <code>Ctrl-a</code>).</p>
+<h3>herdr</h3>
+<p>Config lives in <code>~/.config/herdr/config.toml</code>; <code>herdr server reload-config</code>
+applies changes, <code>herdr config reset-keys</code> restores default keybindings.</p>
 <h3>Caddy</h3>
 <p>Use the helpers (<code>add-site</code>, <code>add-public-site</code>, <code>add-preview-site</code>) rather
 than editing <code>/srv/stack/Caddyfile</code> by hand — they generate blocks that
@@ -237,7 +232,7 @@ namespace, so <code>localhost</code> would point at the container, not the host)
 </code></pre>
 <h2>Development Workflow</h2>
 <ol>
-<li><strong>Start tmux</strong>: <code>tmux</code></li>
+<li><strong>Start a session</strong>: <code>herdr</code></li>
 <li><strong>Create project</strong>: <code>ff-project-init myproject</code> (or <code>mkdir</code> under <code>~/projects</code>)</li>
 <li><strong>Initialize runtime</strong>: <code>npm init</code>, <code>uv init</code>, <code>cargo init</code>, etc.</li>
 <li><strong>Add to Caddy</strong>: <code>add-site myproject 3000</code></li>
@@ -254,7 +249,7 @@ packages installed.</p>
 <li><strong>Remote Development</strong>: SSH from a laptop to an Arch home server</li>
 <li><strong>Agent-First Management</strong>: Claude Code on the box, with system context</li>
 <li><strong>Web Development</strong>: Caddy for reverse proxy and HTTPS</li>
-<li><strong>Terminal-First</strong>: Tmux as the primary interface; the dashboard is a TUI</li>
+<li><strong>Terminal-First</strong>: persistent herdr sessions as the primary interface; the dashboard is a TUI</li>
 <li><strong>Runtime Agnostic</strong>: Support for the major language runtimes</li>
 <li><strong>Versioned Configs</strong>: Every file the bootstrap installs lives under
 <code>configs/</code>, so changes are reviewable in diff form rather than buried

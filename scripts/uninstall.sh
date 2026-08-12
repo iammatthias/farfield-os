@@ -150,8 +150,9 @@ backup_and_remove() {
 }
 
 backup_and_remove "$REAL_HOME/.zshrc"
+backup_and_remove "$REAL_HOME/.zshenv"
 backup_and_remove "$REAL_HOME/.zprofile"
-backup_and_remove "$REAL_HOME/.tmux.conf"
+backup_and_remove "$REAL_HOME/.tmux.conf"  # legacy — pre-herdr installs
 backup_and_remove "$REAL_HOME/.config/fastfetch/config.jsonc"
 backup_and_remove "$REAL_HOME/.config/sway/config"
 backup_and_remove "$REAL_HOME/.config/foot/foot.ini"
@@ -165,8 +166,14 @@ if [ -f "$REAL_HOME/CLAUDE.md" ] && head -n1 "$REAL_HOME/CLAUDE.md" | grep -qE "
     mv "$REAL_HOME/CLAUDE.md" "$REAL_HOME/CLAUDE.md.ff-backup.$TS"
 fi
 
-# Oh My Zsh + Spaceship + plugins
-sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.oh-my-zsh" || true
+# Zinit + prompt (and legacy Oh My Zsh from pre-refresh installs)
+rm -f "$REAL_HOME/.config/zsh/prompt.zsh"
+sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.local/share/zinit" "$REAL_HOME/.oh-my-zsh" || true
+
+# herdr — stop the background server, then remove the user-level install.
+sudo -u "$REAL_USER" "$REAL_HOME/.local/bin/herdr" server stop 2>/dev/null || true
+rm -f "$REAL_HOME/.local/bin/herdr"
+sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.config/herdr" "$REAL_HOME/.local/share/herdr" || true
 
 # Helper scripts — everything setup.sh installs to /usr/local/bin.
 rm -f /usr/local/bin/ff-info /usr/local/bin/ff-update /usr/local/bin/ff-help \
@@ -190,7 +197,7 @@ echo
 echo "Backups: *.ff-backup.$TS"
 echo
 echo "Packages remain installed. To remove the farfield os package set:"
-echo "  sudo pacman -Rns zsh tmux neovim docker docker-compose \\"
+echo "  sudo pacman -Rns zsh neovim docker docker-compose \\"
 echo "    nodejs npm python uv ruby go jdk-openjdk maven gradle \\"
 echo "    eza bat fd fzf zoxide ripgrep jq yq fastfetch htop btop \\"
 echo "    iotop nethogs ncdu rsync rclone p7zip imagemagick httpie \\"

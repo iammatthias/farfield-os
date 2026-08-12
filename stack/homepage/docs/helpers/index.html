@@ -39,32 +39,20 @@
 <p>Quick reference for the aliases, functions, and tools that farfield os sets up.
 Run <code>ff-help</code> on the box for a printed cheat sheet, or <code>ff-aliases</code> /
 <code>ff-functions</code> for an fzf-driven search.</p>
-<h2>Tmux</h2>
-<p>Prefix is <strong><code>Ctrl-a</code></strong> (not the default <code>Ctrl-b</code>).</p>
-<h3>Sessions</h3>
-<pre><code class="language-bash">t              # tmux
-tn &lt;name&gt;      # new named session
-ta &lt;name&gt;      # attach
+<h2>herdr — persistent sessions</h2>
+<p><a href="https://herdr.dev">herdr</a> replaces tmux: a background server keeps
+terminals alive, so sessions survive ssh drops and machine lid-closes,
+and you can reattach from any device.</p>
+<pre><code class="language-bash">t              # herdr — launch/attach the persistent session
+tn &lt;name&gt;      # herdr --session &lt;name&gt;
+ta &lt;name&gt;      # attach to a named session
 tl             # list sessions
-tk &lt;name&gt;      # kill session
+tk &lt;name&gt;      # stop a session
+herdr --remote iam@&lt;host&gt;   # attach to this box from another machine
+herdr status   # client + server status
 </code></pre>
-<h3>Inside tmux (prefix <code>Ctrl-a</code>)</h3>
-<pre><code class="language-text">Ctrl-a v         split window vertically (pane to the right)
-Ctrl-a s         split window horizontally (pane below)
-Ctrl-a h/j/k/l   navigate panes (vim-style)
-Ctrl-a c         new window
-Ctrl-a n / p     next / previous window
-Ctrl-a 0-9       jump to window N
-Ctrl-a x         close current pane
-Ctrl-a z         toggle pane zoom
-Ctrl-a d         detach (session keeps running)
-Ctrl-a r         reload ~/.tmux.conf
-Ctrl-a [         enter copy mode (vim keys)
-Ctrl-a ?         list all bindings
-</code></pre>
-<p>Sessions survive disconnects — <code>tmux attach</code> after re-<code>ssh</code> to pick up where
-you left off. No plugin manager is installed; if you want one, see
-<a href="https://github.com/tmux-plugins/tpm">tpm</a>.</p>
+<p>Config: <code>~/.config/herdr/config.toml</code> (<code>herdr server reload-config</code>
+applies changes live).</p>
 <h2>Caddy site management</h2>
 <p>Defined as zsh functions; they edit <code>/srv/stack/Caddyfile</code> (with a backup)
 and reload the caddy container on success. Caddy runs in the <code>/srv/stack</code>
@@ -110,8 +98,8 @@ exposes <code>wl_touch</code> — on a touch panel, tapping a tile fullscreens i
 action buttons (update / kiosk↻ / stack↻ / prune / reboot, two-tap
 confirm on the destructive ones). Each panel process only runs the
 samplers it displays. <code>ff-board</code> (no args) renders the whole board
-in one terminal — that&#39;s what <code>ff-dashboard</code> runs in tmux for ssh
-sessions, where there&#39;s no compositor:</p>
+in one terminal — that&#39;s what <code>ff-dashboard</code> execs for ssh
+sessions, where there&#39;s no compositor (run it inside herdr to persist):</p>
 <p>Host metrics are sampled natively from <code>/proc</code> + <code>/sys</code> (CPU total +
 per-core, memory/swap, default-route NIC throughput, whole-disk I/O,
 hwmon temperature); container CPU/MEM sparklines + net rates come
@@ -258,7 +246,7 @@ reload                 # source ~/.zshrc
 </code></pre>
 <h2>Backup</h2>
 <pre><code class="language-bash">backup-system    # snapshot /srv/stack/Caddyfile, /etc/{ssh,ufw,fail2ban},
-                 # ~/.zshrc, ~/.tmux.conf to ~/backups/&lt;timestamp&gt;
+                 # ~/.zshrc, ~/.zshenv to ~/backups/&lt;timestamp&gt;
 </code></pre>
 <h2>Adding your own</h2>
 <p>Drop functions/aliases into <code>~/.zshrc</code> and <code>source ~/.zshrc</code>. Or, for a

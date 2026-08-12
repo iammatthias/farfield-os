@@ -80,13 +80,13 @@ and <code>~/.zprofile</code>&#39;s DRM guard.</li>
 <li><strong>Tiles missing after an update</strong>: <code>pkill -x ff-board</code> — the tiles
 respawn; or <code>ff-kiosk-restart</code>.</li>
 </ul>
-<h2>Tmux</h2>
-<p>The prefix is <strong><code>Ctrl-a</code></strong> (not tmux&#39;s default <code>Ctrl-b</code>):</p>
-<pre><code class="language-bash">echo $TMUX                      # confirm you&#39;re inside tmux
-tmux list-keys | grep -w C-a    # confirm the prefix bindings loaded
+<h2>herdr</h2>
+<p>Persistent sessions live in herdr&#39;s background server:</p>
+<pre><code class="language-bash">herdr status server             # is the server up?
+herdr session list              # what sessions exist
+herdr                           # launch/attach the persistent session
 </code></pre>
-<p>No plugin manager is installed — if <code>~/.tmux/plugins/</code> exists, something
-else put it there.</p>
+<p>If the server wedges: <code>herdr server stop</code>, then run <code>herdr</code> again.</p>
 <h2>Zsh</h2>
 <pre><code class="language-bash">chmod 600 ~/.zsh_history        # history not saving
 chsh -s /usr/bin/zsh            # shell didn&#39;t change

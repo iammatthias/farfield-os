@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # farfield os - Home Server Bootstrap for Arch
-# Spaceship + Zsh + Tmux + Caddy + runtimes
+# Zsh (Zinit, hand-rolled prompt) + herdr + Caddy stack + runtimes
 #
 
 set -euo pipefail
@@ -75,7 +75,7 @@ echo -e "${GREEN}Installing core packages...${NC}"
 # not on the host. Docker is the only network-layer thing we install
 # directly.
 pacman -S --noconfirm --needed \
-  zsh tmux neovim git curl wget unzip \
+  zsh neovim git curl wget unzip \
   docker docker-compose \
   nodejs npm \
   python uv \
@@ -100,7 +100,7 @@ echo -e "${GREEN}Installing display stack (sway kiosk dashboard)...${NC}"
 # wl_touch — required for the rack touch panel's tap interactions. Fonts:
 # IBM Plex Mono is the brand's technical voice (foot.ini leads with it);
 # JetBrainsMono Nerd supplies the box-drawing + icon + braille glyphs that
-# btop, tmux, and the spaceship zsh prompt rely on; noto covers unicode
+# btop and the shell prompt rely on; noto covers unicode
 # fallback so foreign glyphs render instead of tofu. grim backs
 # ff-kiosk-shot screenshots.
 pacman -S --noconfirm --needed sway foot grim \
@@ -193,7 +193,7 @@ if [ "$ROOT_FS" = "btrfs" ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Zsh + Spaceship + Oh My Zsh
+# Zsh — Zinit + hand-rolled prompt (mirrors the Mac dotfiles; no framework)
 # -----------------------------------------------------------------------------
 echo -e "${GREEN}Configuring zsh...${NC}"
 
@@ -203,42 +203,31 @@ if [[ -f "$REAL_HOME/.zshrc" ]] && ! cmp -s "$CONFIGS/zshrc" "$REAL_HOME/.zshrc"
     cp "$REAL_HOME/.zshrc" "$REAL_HOME/.zshrc.ff-backup.$(date +%Y%m%d_%H%M%S)" || true
 fi
 
-# Tolerate network flakes (same policy as the per-user tooling heredoc
-# below) — a GitHub blip here must not abort Docker/firewall/databases.
-# Failure is tracked so the finale can call it out.
-sudo -u "$REAL_USER" bash <<EOF || FAILED_SERVICES+=("oh-my-zsh")
+# Pre-clone Zinit so the first interactive shell doesn't pause to
+# bootstrap it. The zshrc self-installs it anyway — this just front-loads
+# the network fetch. Tolerate flakes; a GitHub blip must not abort setup.
+sudo -u "$REAL_USER" bash <<EOF || FAILED_SERVICES+=("zinit")
 set -e
 export HOME="$REAL_HOME"
-
-# Oh My Zsh
-if [ ! -d "\$HOME/.oh-my-zsh" ]; then
-    sh -c "\$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+ZINIT_HOME="\${XDG_DATA_HOME:-\$HOME/.local/share}/zinit/zinit.git"
+if [ ! -f "\$ZINIT_HOME/zinit.zsh" ]; then
+    mkdir -p "\$(dirname "\$ZINIT_HOME")"
+    git clone https://github.com/zdharma-continuum/zinit "\$ZINIT_HOME"
 fi
-
-ZSH_CUSTOM="\$HOME/.oh-my-zsh/custom"
-
-# Plugins
-for plugin_repo in \
-    "zsh-users/zsh-autosuggestions" \
-    "zsh-users/zsh-syntax-highlighting" \
-    "zsh-users/zsh-completions" \
-    "zsh-users/zsh-history-substring-search"; do
-    name=\$(basename "\$plugin_repo")
-    [ ! -d "\$ZSH_CUSTOM/plugins/\$name" ] && \
-        git clone "https://github.com/\$plugin_repo" "\$ZSH_CUSTOM/plugins/\$name"
-done
-
-# Spaceship prompt
-if [ ! -d "\$ZSH_CUSTOM/themes/spaceship-prompt" ]; then
-    git clone --depth=1 https://github.com/spaceship-prompt/spaceship-prompt.git \
-        "\$ZSH_CUSTOM/themes/spaceship-prompt"
-fi
-ln -sf "\$ZSH_CUSTOM/themes/spaceship-prompt/spaceship.zsh-theme" \
-       "\$ZSH_CUSTOM/themes/spaceship.zsh-theme"
 EOF
 
-install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshrc" "$REAL_HOME/.zshrc"
-install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/tmux.conf" "$REAL_HOME/.tmux.conf"
+# herdr — persistent agent sessions (replaces tmux). Official installer,
+# user-level (~/.local/bin/herdr). Guarded + tolerated like bun/rustup.
+if ! sudo -u "$REAL_USER" bash -c 'command -v herdr || [ -x "$HOME/.local/bin/herdr" ]' >/dev/null 2>&1; then
+    sudo -u "$REAL_USER" bash -c 'curl -fsSL https://herdr.dev/install.sh | sh' \
+        || FAILED_SERVICES+=("herdr")
+fi
+
+install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshrc"  "$REAL_HOME/.zshrc"
+install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshenv" "$REAL_HOME/.zshenv"
+install -d -o "$REAL_USER" -g "$REAL_USER" "$REAL_HOME/.config/zsh"
+install -m 644 -o "$REAL_USER" -g "$REAL_USER" \
+    "$CONFIGS/zsh-prompt.zsh" "$REAL_HOME/.config/zsh/prompt.zsh"
 
 install -d -o "$REAL_USER" -g "$REAL_USER" "$REAL_HOME/.config/fastfetch"
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" \
@@ -682,7 +671,7 @@ if [ ${#FAILED_SERVICES[@]} -gt 0 ]; then
 fi
 echo "Next steps:"
 echo "  1. sudo reboot"
-echo "  2. ssh in, run: tmux"
+echo "  2. ssh in, run: herdr"
 echo "  3. add-site myapp 3000   # reverse proxy a service"
 echo "  4. ff-help             # full reference"
 echo

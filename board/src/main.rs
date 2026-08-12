@@ -66,7 +66,7 @@ const STACK: &str = "/srv/stack";
 const TICKS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
 /// What this process renders. `Full` is the whole composite board (the
-/// tmux / ssh view); the rest are single panels — one per sway tile,
+/// herdr / ssh view); the rest are single panels — one per sway tile,
 /// so the compositor does the layout and each tile only runs the
 /// samplers it needs.
 #[derive(Clone, Copy, PartialEq)]
@@ -1667,7 +1667,7 @@ fn section(title: Vec<Span<'static>>) -> Block<'static> {
 /// draws a 2px border + gap around every tile, so a second ratatui box in
 /// the same color is pure redundant ink (and costs two rows + two cols) —
 /// there we render only a bold header row and hand back the rest. The
-/// ssh/tmux `full` board has no compositor, so it keeps the box as its
+/// ssh/herdr `full` board has no compositor, so it keeps the box as its
 /// only separation between panels. `right` is an optional right-aligned
 /// header (clock, etc.).
 fn panel(
@@ -1981,7 +1981,7 @@ fn ui(frame: &mut Frame, app: &App, mode: Mode, touch: &mut Touch) {
     sampler_err_line(frame, app);
 }
 
-/// The whole composite board — what tmux/ssh sessions see. The kiosk
+/// The whole composite board — what herdr/ssh sessions see. The kiosk
 /// instead runs six single-panel processes tiled by sway.
 fn ui_full(frame: &mut Frame, app: &App) {
     let h = &app.host;
@@ -2966,7 +2966,7 @@ fn main() -> std::io::Result<()> {
     }));
     // Restore on EVERY exit path — the `?` returns below would otherwise
     // skip DisableMouseCapture + ratatui::restore() and leave mouse
-    // reporting spewing escapes into the caller's tmux/ssh session.
+    // reporting spewing escapes into the caller's herdr/ssh session.
     struct TermGuard;
     impl Drop for TermGuard {
         fn drop(&mut self) {

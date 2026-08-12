@@ -9,8 +9,9 @@ Core
                               under systemd-run so ssh drops can't
                               kill pacman mid-transaction)
   ff-help                   This reference
-  ff-dashboard              tmux session running the full ff-board
-                              (ssh view; the kiosk uses sway tiles)
+  ff-dashboard              Full ff-board in the current terminal
+                              (ssh view; run inside herdr for a session
+                              that survives disconnects)
   ff-board [panel]          Ratatui dashboard. No args = full board;
                               host|claude|net|disk|containers|status
                               (also cpu|mem alone) render one panel (the
@@ -99,14 +100,13 @@ Python (uv)
   uv tool install <pkg>       Install a Python CLI globally (~/.local/bin)
   uv run <cmd>                Run command in project env
 
-Tmux (prefix: Ctrl-a)
-  t                           Start tmux
-  tn <name>                   New session
-  ta <name>                   Attach
+herdr (persistent agent sessions — replaces tmux)
+  t                           herdr — launch/attach the persistent session
+  tn <name>                   herdr --session <name>
+  ta <name>                   Attach to a named session
   tl                          List sessions
-  tk <name>                   Kill session
-  Ctrl-a v / s                Split vertical / horizontal
-  Ctrl-a h/j/k/l              Navigate panes
+  tk <name>                   Stop a session
+  herdr --remote <ssh-host>   Attach to this box from another machine
 
 Docker
   dkr / dkc                   docker / docker compose

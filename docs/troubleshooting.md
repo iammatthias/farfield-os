@@ -52,15 +52,15 @@ ff-display status        # display power state
 - **Tiles missing after an update**: `pkill -x ff-board` — the tiles
   respawn; or `ff-kiosk-restart`.
 
-## Tmux
+## herdr
 
-The prefix is **`Ctrl-a`** (not tmux's default `Ctrl-b`):
+Persistent sessions live in herdr's background server:
 ```bash
-echo $TMUX                      # confirm you're inside tmux
-tmux list-keys | grep -w C-a    # confirm the prefix bindings loaded
+herdr status server             # is the server up?
+herdr session list              # what sessions exist
+herdr                           # launch/attach the persistent session
 ```
-No plugin manager is installed — if `~/.tmux/plugins/` exists, something
-else put it there.
+If the server wedges: `herdr server stop`, then run `herdr` again.
 
 ## Zsh
 

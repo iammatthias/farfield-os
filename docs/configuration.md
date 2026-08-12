@@ -11,11 +11,8 @@ Add machine-local tweaks at the bottom of `~/.zshrc`, or keep them in the
 repo if they're worth versioning. Highlights you may want to adjust:
 
 ```bash
-# Prompt sections (Spaceship)
-SPACESHIP_DOCKER_SHOW=true
-
-# History (default 50k, shared across sessions)
-HISTSIZE=50000
+# History (default 1.2M, shared across sessions)
+HISTSIZE=1200000
 
 # Pager — bat by default; export PAGER=less if you prefer plain
 export PAGER="bat"
@@ -24,11 +21,16 @@ export PAGER="bat"
 The modern-CLI aliases (`ls`→eza, `cat`→bat, `tree`→`eza --tree`,
 `ports`→`ss -tulpn`) live in the ALIASES section of `configs/zshrc`.
 
-## Tmux (`configs/tmux.conf` → `~/.tmux.conf`)
+## herdr
 
-The prefix is `Ctrl-a`. Keybindings are listed in `docs/helpers.md`; edit
-`configs/tmux.conf` to change them. No plugin manager is installed — the
-config is self-contained.
+herdr (herdr.dev) replaces tmux as the session layer: a background server
+keeps terminals alive across ssh drops. `herdr` launches/attaches the
+persistent session; `herdr --session <name>` for named ones; config lives
+in `~/.config/herdr/config.toml`. From another machine:
+`herdr --remote iam@<host>`.
+
+The prompt is hand-rolled zsh (`configs/zsh-prompt.zsh` →
+`~/.config/zsh/prompt.zsh`) — override it from `~/.zshrc.local`.
 
 ## Kiosk dashboard
 

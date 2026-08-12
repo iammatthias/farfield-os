@@ -1,0 +1,23 @@
+# farfield os — ~/.zshenv: PATH + env for EVERY zsh, including
+# non-interactive ones (ssh one-liners, agents, scripts). Interactive
+# niceties live in ~/.zshrc; this file stays lean and fast.
+# Mirrors the Mac dotfiles layout: env here, interactivity in zshrc.
+
+export EDITOR="nvim"
+export GOPATH="$HOME/go"
+
+typeset -U path  # dedupe on re-source
+path=(
+    "$HOME/.npm-global/bin"
+    "$HOME/.bun/bin"
+    "$HOME/.cargo/bin"
+    "$HOME/.local/bin"
+    "$GOPATH/bin"
+    $path
+)
+# Ruby user-gem bin (version-globbed so this survives ruby major bumps)
+for _gem_bin in "$HOME"/.local/share/gem/ruby/*/bin(N); do
+    path=("$_gem_bin" $path)
+done
+unset _gem_bin
+export PATH

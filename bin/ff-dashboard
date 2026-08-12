@@ -1,54 +1,20 @@
 #!/bin/bash
-# farfield os — tmux dashboard: the ssh view of ff-board.
+# farfield os — the ssh view of ff-board.
 #
-# One full-screen pane running `ff-board` (full-board mode): host
-# CPU/MEM/NET/DISK graphs, per-container sparklines, and stack status,
-# all diff-rendered so nothing flickers. The kiosk display doesn't use
-# this — sway tiles six single-panel ff-board instances in a grid
-# (see configs/sway-config); this tmux session is for looking at the
-# same board over ssh, where there's no compositor.
+# Runs the full board (host CPU/MEM/NET/DISK graphs, per-container
+# sparklines, stack status, diff-rendered — no flicker) in the current
+# terminal. The kiosk display doesn't use this — sway tiles six
+# single-panel ff-board instances (see configs/sway-config).
 #
-# Fallback (ff-board not built — cargo missing at setup time): the
-# original btop + shell-board split, with buffered repaints to keep the
-# flicker down.
+# Persistence comes from herdr, not from this script: run `herdr` (or
+# `herdr --remote iam@<host>` from another machine) and start
+# ff-dashboard inside the session — it survives ssh drops and reattaches
+# from any device. The old tmux-session plumbing is gone with tmux.
 #
-# `ff-claude-stats` is the one-shot for Claude Code session stats.
-#
-# Auto-attaches if the session already exists. Without a tty (e.g. over
-# plain ssh) it creates/refreshes the session detached.
-
+# Fallback (ff-board not built — cargo missing at setup time): btop.
 set -uo pipefail
 
-SESSION=dashboard
-
-# Already running? Just attach.
-if tmux has-session -t "$SESSION" 2>/dev/null; then
-    [ -t 0 ] && exec tmux attach -t "$SESSION"
-    exit 0
-fi
-
-# Build a self-refreshing pane command for the fallback shell boards:
-# render to a buffer first, then home+clear+paint in a single printf —
-# no blank frame between refreshes. `while :;` means a transient
-# command failure never tears the pane down.
-loop() {  # loop <interval-seconds> <command>
-    printf 'while :; do out=$(%s 2>&1); printf "\\033[H\\033[2J%%s\\n" "$out"; sleep %s; done' "$2" "$1"
-}
-
 if command -v ff-board >/dev/null 2>&1; then
-    # Full-screen ratatui board. The respawn loop means a crash never
-    # leaves a dead kiosk pane.
-    tmux new-session -d -s "$SESSION" -n main -x "${COLUMNS:-232}" -y "${LINES:-55}" \
-        'while :; do ff-board; sleep 2; done'
-else
-    # Fallback: btop + the shell boards.
-    tmux new-session -d -s "$SESSION" -n main -x "${COLUMNS:-232}" -y "${LINES:-55}" 'btop'
-    tmux split-window -v -t "$SESSION:main" -l 44% "$(loop 10 ff-metrics-board)"
-    tmux split-window -h -t "$SESSION:main.{bottom-left}" -l 50% "$(loop 30 ff-status-board)"
-    tmux select-pane  -t "$SESSION:main.{top-left}"
+    exec ff-board
 fi
-tmux set-option   -t "$SESSION" status off
-tmux set-option   -t "$SESSION" mouse on
-
-[ -t 0 ] && exec tmux attach -t "$SESSION"
-exit 0
+exec btop

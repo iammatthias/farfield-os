@@ -4,40 +4,24 @@ Quick reference for the aliases, functions, and tools that farfield os sets up.
 Run `ff-help` on the box for a printed cheat sheet, or `ff-aliases` /
 `ff-functions` for an fzf-driven search.
 
-## Tmux
+## herdr — persistent sessions
 
-Prefix is **`Ctrl-a`** (not the default `Ctrl-b`).
-
-### Sessions
+[herdr](https://herdr.dev) replaces tmux: a background server keeps
+terminals alive, so sessions survive ssh drops and machine lid-closes,
+and you can reattach from any device.
 
 ```bash
-t              # tmux
-tn <name>      # new named session
-ta <name>      # attach
+t              # herdr — launch/attach the persistent session
+tn <name>      # herdr --session <name>
+ta <name>      # attach to a named session
 tl             # list sessions
-tk <name>      # kill session
+tk <name>      # stop a session
+herdr --remote iam@<host>   # attach to this box from another machine
+herdr status   # client + server status
 ```
 
-### Inside tmux (prefix `Ctrl-a`)
-
-```text
-Ctrl-a v         split window vertically (pane to the right)
-Ctrl-a s         split window horizontally (pane below)
-Ctrl-a h/j/k/l   navigate panes (vim-style)
-Ctrl-a c         new window
-Ctrl-a n / p     next / previous window
-Ctrl-a 0-9       jump to window N
-Ctrl-a x         close current pane
-Ctrl-a z         toggle pane zoom
-Ctrl-a d         detach (session keeps running)
-Ctrl-a r         reload ~/.tmux.conf
-Ctrl-a [         enter copy mode (vim keys)
-Ctrl-a ?         list all bindings
-```
-
-Sessions survive disconnects — `tmux attach` after re-`ssh` to pick up where
-you left off. No plugin manager is installed; if you want one, see
-[tpm](https://github.com/tmux-plugins/tpm).
+Config: `~/.config/herdr/config.toml` (`herdr server reload-config`
+applies changes live).
 
 ## Caddy site management
 
@@ -93,8 +77,8 @@ exposes `wl_touch` — on a touch panel, tapping a tile fullscreens it
 action buttons (update / kiosk↻ / stack↻ / prune / reboot, two-tap
 confirm on the destructive ones). Each panel process only runs the
 samplers it displays. `ff-board` (no args) renders the whole board
-in one terminal — that's what `ff-dashboard` runs in tmux for ssh
-sessions, where there's no compositor:
+in one terminal — that's what `ff-dashboard` execs for ssh
+sessions, where there's no compositor (run it inside herdr to persist):
 
 Host metrics are sampled natively from `/proc` + `/sys` (CPU total +
 per-core, memory/swap, default-route NIC throughput, whole-disk I/O,
@@ -273,7 +257,7 @@ reload                 # source ~/.zshrc
 
 ```bash
 backup-system    # snapshot /srv/stack/Caddyfile, /etc/{ssh,ufw,fail2ban},
-                 # ~/.zshrc, ~/.tmux.conf to ~/backups/<timestamp>
+                 # ~/.zshrc, ~/.zshenv to ~/backups/<timestamp>
 ```
 
 ## Adding your own

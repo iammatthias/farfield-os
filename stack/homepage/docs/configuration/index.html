@@ -43,21 +43,22 @@ place); one-off edits on the box work but drift from the repo.</p>
 <h2>Shell (<code>configs/zshrc</code> → <code>~/.zshrc</code>)</h2>
 <p>Add machine-local tweaks at the bottom of <code>~/.zshrc</code>, or keep them in the
 repo if they&#39;re worth versioning. Highlights you may want to adjust:</p>
-<pre><code class="language-bash"># Prompt sections (Spaceship)
-SPACESHIP_DOCKER_SHOW=true
-
-# History (default 50k, shared across sessions)
-HISTSIZE=50000
+<pre><code class="language-bash"># History (default 1.2M, shared across sessions)
+HISTSIZE=1200000
 
 # Pager — bat by default; export PAGER=less if you prefer plain
 export PAGER=&quot;bat&quot;
 </code></pre>
 <p>The modern-CLI aliases (<code>ls</code>→eza, <code>cat</code>→bat, <code>tree</code>→<code>eza --tree</code>,
 <code>ports</code>→<code>ss -tulpn</code>) live in the ALIASES section of <code>configs/zshrc</code>.</p>
-<h2>Tmux (<code>configs/tmux.conf</code> → <code>~/.tmux.conf</code>)</h2>
-<p>The prefix is <code>Ctrl-a</code>. Keybindings are listed in <code>docs/helpers.md</code>; edit
-<code>configs/tmux.conf</code> to change them. No plugin manager is installed — the
-config is self-contained.</p>
+<h2>herdr</h2>
+<p>herdr (herdr.dev) replaces tmux as the session layer: a background server
+keeps terminals alive across ssh drops. <code>herdr</code> launches/attaches the
+persistent session; <code>herdr --session &lt;name&gt;</code> for named ones; config lives
+in <code>~/.config/herdr/config.toml</code>. From another machine:
+<code>herdr --remote iam@&lt;host&gt;</code>.</p>
+<p>The prompt is hand-rolled zsh (<code>configs/zsh-prompt.zsh</code> →
+<code>~/.config/zsh/prompt.zsh</code>) — override it from <code>~/.zshrc.local</code>.</p>
 <h2>Kiosk dashboard</h2>
 <ul>
 <li><code>configs/sway-config</code> — compositor: brand colors, gaps, tile rules.</li>
