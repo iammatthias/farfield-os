@@ -32,8 +32,8 @@ a:focus-visible{outline:2px solid var(--horizon);outline-offset:3px}
 
 .layout{
   max-width:72rem;margin-inline:auto;
-  display:grid;grid-template-columns:13rem minmax(0,1fr);gap:3rem;
-  padding:2.5rem clamp(1.25rem,4vw,2.5rem) 4rem;
+  display:grid;grid-template-columns:13rem minmax(0,1fr);gap:clamp(2.5rem,5vw,4.5rem);
+  padding:3.5rem clamp(1.25rem,4vw,2.5rem) 6rem;
 }
 aside{position:sticky;top:1.5rem;align-self:start}
 .side{display:flex;flex-direction:column;gap:.15rem}
@@ -49,7 +49,7 @@ aside{position:sticky;top:1.5rem;align-self:start}
   .side{flex-direction:row;flex-wrap:wrap;gap:.25rem}
 }
 
-.doc{max-width:44rem}
+.doc{max-width:42rem}
 .doc h1{
   font-family:"Newsreader",Georgia,serif;font-weight:500;
   font-size:clamp(1.9rem,4vw,2.5rem);line-height:1.05;letter-spacing:-.02em;
@@ -57,14 +57,14 @@ aside{position:sticky;top:1.5rem;align-self:start}
 }
 .doc h2{
   font-family:"Newsreader",Georgia,serif;font-weight:500;
-  font-size:1.45rem;letter-spacing:-.015em;line-height:1.15;
-  margin:2.6rem 0 .8rem;padding-top:1.6rem;border-top:1px solid var(--border);
+  font-size:1.5rem;letter-spacing:-.015em;line-height:1.15;
+  margin:4rem 0 1rem;padding-top:2rem;border-top:1px solid var(--border);
 }
-.doc h3{font-size:1.02rem;font-weight:600;margin:1.8rem 0 .5rem}
-.doc p{margin:.8rem 0;color:rgba(243,229,209,.85)}
+.doc h3{font-size:1.02rem;font-weight:600;margin:2.4rem 0 .6rem}
+.doc p{margin:1rem 0;color:rgba(243,229,209,.85);line-height:1.65}
 .doc strong{color:var(--paper);font-weight:600}
-.doc ul,.doc ol{margin:.8rem 0;padding-left:1.5rem;color:rgba(243,229,209,.85)}
-.doc li{margin:.3rem 0}
+.doc ul,.doc ol{margin:1rem 0;padding-left:1.5rem;color:rgba(243,229,209,.85)}
+.doc li{margin:.5rem 0;line-height:1.6}
 .doc li::marker{color:var(--mist)}
 .doc img{max-width:100%;border-radius:6px}
 
@@ -74,8 +74,8 @@ aside{position:sticky;top:1.5rem;align-self:start}
 }
 .doc pre{
   background:var(--wash);border:1px solid var(--border);border-radius:6px;
-  padding:1rem 1.15rem;overflow-x:auto;margin:1rem 0;
-  font-size:.85rem;line-height:1.65;
+  padding:1.1rem 1.25rem;overflow-x:auto;margin:1.4rem 0;
+  font-size:.85rem;line-height:1.7;
 }
 .doc pre code{background:none;padding:0;font-size:1em;color:var(--paper)}
 
@@ -88,6 +88,14 @@ aside{position:sticky;top:1.5rem;align-self:start}
 .doc td{padding:.5rem .8rem;border-bottom:1px solid var(--border);color:rgba(243,229,209,.85)}
 .doc blockquote{border-left:2px solid rgba(229,159,103,.55);padding-left:1rem;margin:1rem 0;opacity:.85}
 .doc hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
+
+.observation{margin:2.2rem 0 0}
+.observation svg{display:block;width:100%;height:auto}
+.observation figcaption{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--mist);margin-top:.9rem;
+}
 
 footer{max-width:72rem;margin-inline:auto;padding:0 clamp(1.25rem,4vw,2.5rem) 2.5rem}
 .note{

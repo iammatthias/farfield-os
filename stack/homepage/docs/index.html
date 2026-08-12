@@ -45,6 +45,40 @@ a full set of language runtimes, and a docker-compose stack
 Day-to-day management is Claude Code over SSH.</p>
 <p>This is intentionally opinionated and intentionally heavy — it&#39;s a
 personal home-server bootstrap, not a minimal TTY distribution.</p>
+<figure class="observation" aria-label="System diagram: the internet reaches the box through a Cloudflare tunnel; the tailnet reaches it through Tailscale; both land on Caddy, which routes to projects on host ports. A display gets the kiosk board.">
+<svg viewBox="0 0 700 280" role="img">
+  <g style="font-family:'IBM Plex Mono',monospace;font-size:11px" fill="#f3e5d1">
+    <!-- two ways in -->
+    <circle cx="48" cy="80" r="4.5" fill="#f3e5d1"/>
+    <text x="48" y="58" text-anchor="middle" opacity="0.6">internet</text>
+    <path d="M 56 82 C 120 100, 180 118, 240 132" fill="none" stroke="#f3e5d1" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+    <text x="132" y="92" opacity="0.6">cloudflare tunnel</text>
+    <circle cx="48" cy="208" r="4.5" fill="none" stroke="#f3e5d1" opacity="0.8"/>
+    <text x="48" y="238" text-anchor="middle" opacity="0.6">tailnet</text>
+    <path d="M 56 206 C 120 190, 180 172, 240 156" fill="none" stroke="#f3e5d1" stroke-width="1" stroke-dasharray="2 4" opacity="0.5"/>
+    <text x="132" y="206" opacity="0.6">tailscale</text>
+    <!-- caddy: signal in field -->
+    <circle cx="256" cy="144" r="11" fill="none" stroke="#e59f67" stroke-width="1.2" opacity="0.9"/>
+    <circle cx="256" cy="144" r="3" fill="#e59f67"/>
+    <text x="256" y="176" text-anchor="middle" opacity="0.7">caddy</text>
+    <!-- host ports -->
+    <g stroke="#f3e5d1" stroke-width="0.75" opacity="0.25">
+      <line x1="268" y1="140" x2="420" y2="72"/>
+      <line x1="269" y1="144" x2="420" y2="144"/>
+      <line x1="268" y1="148" x2="420" y2="216"/>
+    </g>
+    <g opacity="0.85">
+      <circle cx="424" cy="72" r="3.5"/><text x="434" y="76">the farfield fleet · :8787–:8801</text>
+      <circle cx="424" cy="144" r="3.5"/><text x="434" y="148">your projects · add-site &lt;name&gt; &lt;port&gt;</text>
+      <circle cx="424" cy="216" r="3.5"/><text x="434" y="220">previews · tailnet-only HTTPS</text>
+    </g>
+    <!-- the kiosk, off to the side -->
+    <circle cx="256" cy="252" r="3.5" fill="none" stroke="#f3e5d1" opacity="0.7"/>
+    <text x="266" y="256" opacity="0.6">kiosk board · if a display is attached</text>
+  </g>
+</svg>
+<figcaption>Observation 01 · one box, two ways in, opt-in public surface</figcaption>
+</figure>
 <h2>What You Get</h2>
 <ul>
 <li><strong>Kiosk Dashboard</strong> — sway (Wayland) + foot tile six <code>ff-board</code> panels (CPU/MEM/NET, DISK/CONTAINERS/OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; <code>ff-dashboard</code> gives the same board over ssh in tmux</li>
