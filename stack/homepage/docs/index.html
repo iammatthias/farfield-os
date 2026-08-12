@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e192a">
+<title>Overview — Farfield OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+<meta name="description" content="Overview — Farfield OS documentation. An opinionated home-server bootstrap for Arch Linux.">
+<link rel="canonical" href="https://os.farfield.systems/docs/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="farfield">
+<meta property="og:title" content="Overview — Farfield OS">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+</head>
+<body>
+<header class="bar">
+  <a href="/" class="brand">farfield&nbsp;os</a>
+  <nav class="crumbs" aria-label="Site">
+    <a href="/docs/" aria-current="page">Docs</a>
+    <a href="https://github.com/iammatthias/farfield-os">Source</a>
+    <a href="https://farfield.systems/">Fleet</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside>
+    <nav class="side" aria-label="Docs">
+      <a href="/docs/" aria-current="page">Overview</a>
+      <a href="/docs/helpers/">Helpers</a>
+      <a href="/docs/configuration/">Configuration</a>
+      <a href="/docs/troubleshooting/">Troubleshooting</a>
+    </nav>
+  </aside>
+  <main class="doc">
+<h1>farfield os</h1>
+<p><strong>Opinionated home-server bootstrap for Arch Linux</strong></p>
+<p>A single setup script that turns a fresh Arch install into a home server
+for remote development over SSH — with an optional live dashboard if a
+display is attached. Spaceship + Zsh + Tmux, Docker, PostgreSQL + Valkey,
+a full set of language runtimes, and a docker-compose stack
+(Tailscale + Caddy + Cloudflare Tunnel) that ships the network surface.
+Day-to-day management is Claude Code over SSH.</p>
+<p>This is intentionally opinionated and intentionally heavy — it&#39;s a
+personal home-server bootstrap, not a minimal TTY distribution.</p>
+<h2>What You Get</h2>
+<ul>
+<li><strong>Kiosk Dashboard</strong> — sway (Wayland) + foot tile six <code>ff-board</code> panels (CPU/MEM/NET, DISK/CONTAINERS/OPS) on an attached display, with touch support: tap a tile to fullscreen it, on-screen action buttons. A no-op when headless; <code>ff-dashboard</code> gives the same board over ssh in tmux</li>
+<li><strong>Spaceship Prompt</strong> — fast, informative Zsh prompt (git, runtimes, exec time)</li>
+<li><strong>Zsh with Essential Plugins</strong> — autosuggestions, syntax highlighting, completions</li>
+<li><strong>Tmux as Default</strong> — tiling terminal multiplexer, <code>Ctrl-a</code> prefix, vim keybindings</li>
+<li><strong>Ingress stack</strong> — docker-compose at <code>/srv/stack/</code>: Tailscale (tailnet identity) + Caddy (reverse proxy, LE wildcard certs via DNS-01) + Cloudflare Tunnel (opt-in public sites). <code>git pull &amp;&amp; docker compose up -d --build</code> to update</li>
+<li><strong>PM2 Process Management</strong> — Node.js app process management</li>
+<li><strong>Database Support</strong> — PostgreSQL and Valkey (Redis-compatible)</li>
+<li><strong>Btrfs + Snapper</strong> — auto-snapshot before/after every pacman transaction; boot-into-snapshot via GRUB submenu when an update breaks the system (only when root is btrfs)</li>
+<li><strong>Security Features</strong> — UFW firewall, Fail2ban, SSH hardening (drop-in based)</li>
+<li><strong>System Monitoring</strong> — btop, iotop, nethogs, smartmontools</li>
+<li><strong>Claude Code</strong> — installed npm-global on the host; ssh in and run <code>claude</code> to manage the box or work on projects (<code>~/CLAUDE.md</code> gives it system context)</li>
+<li><strong>Runtime Support</strong> — Node.js, Bun, Python (uv), Ruby, Rust, Go, Java, Docker</li>
+<li><strong>Development Tools</strong> — eza, bat, fd, fzf, zoxide, ripgrep, and more</li>
+</ul>
+<h2>Initial Arch Linux Setup</h2>
+<p>Before installing, you need a fresh Arch Linux system with basic tools.</p>
+<h3>1. Install Arch Linux</h3>
+<p>Follow the <a href="https://wiki.archlinux.org/title/Installation_guide">Arch Linux Installation Guide</a>.</p>
+<h3>2. Prerequisites</h3>
+<p>Ensure your Arch system has:</p>
+<ul>
+<li>A non-root user with sudo access</li>
+<li>SSH access configured</li>
+<li>Basic packages: <code>git</code>, <code>curl</code>, <code>wget</code>, <code>base-devel</code></li>
+</ul>
+<p><code>setup.sh</code> installs <code>yay</code> (AUR helper) and the rest of the toolchain itself —
+you do not need to bootstrap an AUR helper first.</p>
+<h2>Quick Start</h2>
+<pre><code class="language-bash"># Clone
+git clone https://github.com/iammatthias/farfield-os.git
+cd farfield-os
+
+# Run setup as root
+sudo ./scripts/setup.sh
+
+# Reboot
+sudo reboot
+</code></pre>
+<p>After reboot, <code>ff-bootstrap</code> walks the interactive one-time steps
+(tailscale auth, Claude Code login), then start tmux:</p>
+<pre><code class="language-bash">tmux
+</code></pre>
+<h2>Core Features</h2>
+<h3>Spaceship Prompt</h3>
+<ul>
+<li>Shows git branch, status, and staging</li>
+<li>Displays active runtime environments (Node, Python, Ruby, etc.)</li>
+<li>Execution time for slow commands</li>
+<li>Clean, fast, and highly customizable</li>
+</ul>
+<h3>Zsh Configuration</h3>
+<ul>
+<li><strong>Plugins</strong>: autosuggestions, syntax highlighting, completions, history-substring-search</li>
+<li><strong>Smart History</strong>: 50k entries, shared across sessions</li>
+<li><strong>Navigation</strong>: <code>..</code>, <code>...</code>, <code>-</code> for directory jumping; <code>z &lt;dir&gt;</code> (zoxide)</li>
+<li><strong>File Operations</strong>: <code>ls</code> with icons (eza), <code>cat</code> with syntax highlighting (bat)</li>
+</ul>
+<h3>Caddy (containerized)</h3>
+<p>Caddy runs in the <code>/srv/stack</code> compose stack, not as a host package. The
+Caddyfile lives at <code>/srv/stack/Caddyfile</code>; manage it with the shell
+helpers, not by hand:</p>
+<ul>
+<li><strong>Add Sites</strong>: <code>add-site myapp 3000</code> (reverse proxy to a host port) or <code>add-site static /srv/www</code> (static files)</li>
+<li><strong>Public sites</strong>: <code>add-public-site &lt;name&gt; &lt;host&gt; &lt;port&gt;</code> (via Cloudflare Tunnel)</li>
+<li><strong>Preview sites</strong>: <code>add-preview-site &lt;name&gt; &lt;port|dir&gt;</code> (HTTPS on the tailnet)</li>
+<li><strong>Site Management</strong>: <code>remove-site</code>, <code>list-sites</code>, <code>test-caddy</code></li>
+<li><strong>Configuration</strong>: <code>caddy-edit</code> / <code>caddy-reload</code> / <code>caddy-status</code></li>
+</ul>
+<h3>Runtime Environments</h3>
+<ul>
+<li><strong>Node.js</strong>: npm, yarn, pnpm, bun, pm2</li>
+<li><strong>Python</strong>: <a href="https://docs.astral.sh/uv/"><code>uv</code></a> (replaces pip / pipx /
+pipenv / poetry); preinstalled <code>uv tool</code>s: ruff, pytest, black</li>
+<li><strong>Ruby</strong>: gem, bundler</li>
+<li><strong>Rust</strong>: cargo, rustup</li>
+<li><strong>Go</strong>: go, delve debugger</li>
+<li><strong>Java</strong>: OpenJDK, Maven, Gradle</li>
+<li><strong>Docker</strong>: docker, compose, buildx</li>
+<li><strong>Claude Code</strong>: <code>claude</code> (Anthropic&#39;s CLI; reads <code>~/CLAUDE.md</code> for
+system context)</li>
+</ul>
+<h2>Essential Commands</h2>
+<h3>System</h3>
+<pre><code class="language-bash">ff-info       # System information (fastfetch machine report)
+ff-update     # Update system (--yes for unattended via systemd-run)
+ff-help       # Full command reference
+ff-dashboard  # The kiosk board, in tmux, over ssh
+ff-deploy     # git pull + rebuild a project under ~/projects
+</code></pre>
+<h3>Tmux</h3>
+<pre><code class="language-bash">t              # Start tmux
+tn &lt;name&gt;      # New named session
+ta &lt;name&gt;      # Attach to session
+tl             # List sessions
+Ctrl-a v       # Split vertical
+Ctrl-a s       # Split horizontal
+Ctrl-a h/j/k/l # Navigate panes
+</code></pre>
+<h3>Docker</h3>
+<pre><code class="language-bash">dkr             # docker
+dkc             # docker compose
+dkps            # docker ps
+dkpa            # docker ps -a
+dki             # docker images
+dkex &lt;name&gt;     # docker exec -it
+</code></pre>
+<h3>Caddy</h3>
+<pre><code class="language-bash">add-site &lt;name&gt; [port|dir]  # Add site (port=reverse proxy, dir=static files)
+remove-site &lt;name&gt;          # Remove site from Caddy
+list-sites                  # List configured sites
+caddy-edit                  # Edit /srv/stack/Caddyfile
+caddy-reload                # Reload Caddy (in-container)
+test-caddy                  # Validate Caddy configuration
+caddy-status                # Check Caddy status and logs
+</code></pre>
+<h3>Git</h3>
+<pre><code class="language-bash">gs             # git status
+ga             # git add
+gc             # git commit
+gp             # git push
+gl             # git pull
+glog           # git log --oneline --graph
+</code></pre>
+<h3>Navigation</h3>
+<pre><code class="language-bash">..             # Go up one directory
+...            # Go up two directories
+-              # Previous directory
+ls             # List with icons
+ll             # Long format
+tree           # Tree view (aliased to eza --tree)
+</code></pre>
+<h2>Configuration</h2>
+<h3>Spaceship Prompt</h3>
+<p>Edit <code>~/.zshrc</code> to customize the prompt:</p>
+<pre><code class="language-bash"># Show/hide sections
+SPACESHIP_NODE_SHOW=true
+SPACESHIP_PYTHON_SHOW=true
+SPACESHIP_DOCKER_SHOW=true
+
+# Customize symbols
+SPACESHIP_CHAR_SYMBOL=&quot;❯ &quot;
+SPACESHIP_GIT_BRANCH_PREFIX=&quot;&quot;
+</code></pre>
+<h3>Tmux</h3>
+<p>Edit <code>~/.tmux.conf</code> for custom keybindings (the shipped prefix is <code>Ctrl-a</code>).</p>
+<h3>Caddy</h3>
+<p>Use the helpers (<code>add-site</code>, <code>add-public-site</code>, <code>add-preview-site</code>) rather
+than editing <code>/srv/stack/Caddyfile</code> by hand — they generate blocks that
+proxy via <code>host.docker.internal</code> (caddy runs inside the stack&#39;s network
+namespace, so <code>localhost</code> would point at the container, not the host):</p>
+<pre><code class="language-caddy">myapp.local:80 {
+    reverse_proxy host.docker.internal:3000
+}
+</code></pre>
+<h2>Development Workflow</h2>
+<ol>
+<li><strong>Start tmux</strong>: <code>tmux</code></li>
+<li><strong>Create project</strong>: <code>ff-project-init myproject</code> (or <code>mkdir</code> under <code>~/projects</code>)</li>
+<li><strong>Initialize runtime</strong>: <code>npm init</code>, <code>uv init</code>, <code>cargo init</code>, etc.</li>
+<li><strong>Add to Caddy</strong>: <code>add-site myproject 3000</code></li>
+<li><strong>Access</strong>: <code>http://myproject.local</code> over the tailnet</li>
+</ol>
+<h2>Uninstall</h2>
+<pre><code class="language-bash">sudo ./scripts/uninstall.sh
+</code></pre>
+<p>This removes farfield os configuration (with backups) but keeps system
+packages installed.</p>
+<h2>Philosophy</h2>
+<p>farfield os is designed for:</p>
+<ul>
+<li><strong>Remote Development</strong>: SSH from a laptop to an Arch home server</li>
+<li><strong>Agent-First Management</strong>: Claude Code on the box, with system context</li>
+<li><strong>Web Development</strong>: Caddy for reverse proxy and HTTPS</li>
+<li><strong>Terminal-First</strong>: Tmux as the primary interface; the dashboard is a TUI</li>
+<li><strong>Runtime Agnostic</strong>: Support for the major language runtimes</li>
+<li><strong>Versioned Configs</strong>: Every file the bootstrap installs lives under
+<code>configs/</code>, so changes are reviewable in diff form rather than buried
+in heredocs</li>
+</ul>
+<h2>License</h2>
+<p>MIT</p>
+
+
+  </main>
+</div>
+<footer>
+  <span class="note">Farfield OS · MIT</span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e192a">
+<title>Configuration — Farfield OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+<meta name="description" content="Configuration — Farfield OS documentation. An opinionated home-server bootstrap for Arch Linux.">
+<link rel="canonical" href="https://os.farfield.systems/docs/configuration/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="farfield">
+<meta property="og:title" content="Configuration — Farfield OS">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+</head>
+<body>
+<header class="bar">
+  <a href="/" class="brand">farfield&nbsp;os</a>
+  <nav class="crumbs" aria-label="Site">
+    <a href="/docs/" aria-current="page">Docs</a>
+    <a href="https://github.com/iammatthias/farfield-os">Source</a>
+    <a href="https://farfield.systems/">Fleet</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside>
+    <nav class="side" aria-label="Docs">
+      <a href="/docs/">Overview</a>
+      <a href="/docs/helpers/">Helpers</a>
+      <a href="/docs/configuration/" aria-current="page">Configuration</a>
+      <a href="/docs/troubleshooting/">Troubleshooting</a>
+    </nav>
+  </aside>
+  <main class="doc">
+<h1>Configuration</h1>
+<p>Customization recipes for a farfield os box. Every file the bootstrap
+installs is tracked in <code>configs/</code> — the durable way to change behavior is
+to edit there and re-run <code>sudo ./scripts/setup.sh</code> (or copy the file into
+place); one-off edits on the box work but drift from the repo.</p>
+<h2>Shell (<code>configs/zshrc</code> → <code>~/.zshrc</code>)</h2>
+<p>Add machine-local tweaks at the bottom of <code>~/.zshrc</code>, or keep them in the
+repo if they&#39;re worth versioning. Highlights you may want to adjust:</p>
+<pre><code class="language-bash"># Prompt sections (Spaceship)
+SPACESHIP_DOCKER_SHOW=true
+
+# History (default 50k, shared across sessions)
+HISTSIZE=50000
+
+# Pager — bat by default; export PAGER=less if you prefer plain
+export PAGER=&quot;bat&quot;
+</code></pre>
+<p>The modern-CLI aliases (<code>ls</code>→eza, <code>cat</code>→bat, <code>tree</code>→<code>eza --tree</code>,
+<code>ports</code>→<code>ss -tulpn</code>) live in the ALIASES section of <code>configs/zshrc</code>.</p>
+<h2>Tmux (<code>configs/tmux.conf</code> → <code>~/.tmux.conf</code>)</h2>
+<p>The prefix is <code>Ctrl-a</code>. Keybindings are listed in <code>docs/helpers.md</code>; edit
+<code>configs/tmux.conf</code> to change them. No plugin manager is installed — the
+config is self-contained.</p>
+<h2>Kiosk dashboard</h2>
+<ul>
+<li><code>configs/sway-config</code> — compositor: brand colors, gaps, tile rules.</li>
+<li><code>configs/foot.ini</code> — terminal: font (IBM Plex Mono, JetBrainsMono Nerd
+fallback) and the farfield palette.</li>
+<li><code>configs/zprofile</code> — auto-starts sway on tty1 only when a display is
+attached (<code>FF_KIOSK_FONT</code> scales with output resolution).</li>
+<li><code>board/src/main.rs</code> — the <code>ff-board</code> TUI itself; the palette constants
+are near the top of the Rendering section.</li>
+</ul>
+<p><code>ff-display on|auto|off|status</code> controls display power;
+<code>ff-kiosk-restart</code> respawns the tiles after a config change.</p>
+<h2>Packages</h2>
+<p>Edit the <code>pacman -S</code> blocks at the top of <code>scripts/setup.sh</code> and re-run
+setup (<code>--needed</code> makes it cheap). One-off installs on the box work too —
+they just won&#39;t be reproduced by a fresh bootstrap. Language toolchains
+are managed by their own tools (<code>uv</code>, <code>rustup</code>, <code>npm -g</code>, <code>gem</code>), not
+pacman.</p>
+<h2>Databases</h2>
+<p>PostgreSQL and Valkey are host services:</p>
+<pre><code class="language-bash">sudo systemctl status postgresql valkey
+psql            # aliased to psql as your user (superuser role created by setup)
+valkey-cli      # redis-compatible CLI
+</code></pre>
+<h2>Ingress stack</h2>
+<p>See <code>stack/README.md</code> and <code>HOSTING.md</code> on the box. The short version:
+<code>/srv/stack/Caddyfile</code> is live state — manage sites with <code>add-site</code>,
+<code>add-public-site</code>, <code>add-preview-site</code>, never by clobbering the file with
+repo boilerplate.</p>
+
+
+  </main>
+</div>
+<footer>
+  <span class="note">Farfield OS · MIT</span>
+</footer>
+</body>
+</html>

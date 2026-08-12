@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e192a">
+<title>Troubleshooting — Farfield OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+<meta name="description" content="Troubleshooting — Farfield OS documentation. An opinionated home-server bootstrap for Arch Linux.">
+<link rel="canonical" href="https://os.farfield.systems/docs/troubleshooting/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="farfield">
+<meta property="og:title" content="Troubleshooting — Farfield OS">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+</head>
+<body>
+<header class="bar">
+  <a href="/" class="brand">farfield&nbsp;os</a>
+  <nav class="crumbs" aria-label="Site">
+    <a href="/docs/" aria-current="page">Docs</a>
+    <a href="https://github.com/iammatthias/farfield-os">Source</a>
+    <a href="https://farfield.systems/">Fleet</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside>
+    <nav class="side" aria-label="Docs">
+      <a href="/docs/">Overview</a>
+      <a href="/docs/helpers/">Helpers</a>
+      <a href="/docs/configuration/">Configuration</a>
+      <a href="/docs/troubleshooting/" aria-current="page">Troubleshooting</a>
+    </nav>
+  </aside>
+  <main class="doc">
+<h1>Troubleshooting</h1>
+<h2>SSH</h2>
+<h3>Every new connection drops at the handshake, existing sessions fine</h3>
+<p>An openssh upgrade without an sshd restart — the old listener can&#39;t exec
+the new per-session binary. <code>ff-update</code> restarts sshd automatically after
+openssh upgrades; if you upgraded by hand, from any still-open session:</p>
+<pre><code class="language-bash">sudo systemctl try-restart sshd   # does NOT drop existing sessions
+</code></pre>
+<p>No open session? Physical console (or reboot).</p>
+<h3>Typed input garbles / autocomplete breaks over ssh</h3>
+<p>Your terminal&#39;s terminfo entry is missing on the box (Ghostty sends
+<code>TERM=xterm-ghostty</code>; setup installs <code>ghostty-terminfo</code>). Quick fix from
+the client for other terminals: <code>infocmp -x | ssh box &#39;tic -x -&#39;</code>.</p>
+<h2>Ingress stack</h2>
+<pre><code class="language-bash">cd /srv/stack
+docker compose ps                  # tailscale must be healthy first —
+                                   # caddy + cloudflared join its netns
+docker compose logs tailscale caddy cloudflared --tail 50
+</code></pre>
+<ul>
+<li><strong>Everything down at once</strong>: never restart the tailscale container
+alone — caddy/cloudflared orphan when its netns dies. Always
+<code>docker compose up -d</code> the whole stack (<code>ff-stack.service</code> does this at
+boot).</li>
+<li><strong>Caddy rejects config</strong>: <code>test-caddy</code> validates; <code>caddy-status</code> tails
+logs. Site helpers keep a <code>.bak</code> of the previous Caddyfile.</li>
+<li><strong>Public site 502s</strong>: check cloudflared is running and
+<code>COMPOSE_PROFILES=cloudflared</code> is set in <code>/srv/stack/.env</code>.</li>
+<li><strong>Container can&#39;t reach a host service</strong>: host ports are proxied via
+<code>host.docker.internal</code>; UFW must allow docker subnets
+(<code>ufw allow from 172.16.0.0/12</code> — setup does this).</li>
+</ul>
+<h2>Kiosk dashboard</h2>
+<pre><code class="language-bash">ff-kiosk-shot            # screenshot what the panel is showing (grim)
+ff-kiosk-restart         # respawn the six tiles
+ff-display status        # display power state
+</code></pre>
+<ul>
+<li><strong>Blank display</strong>: <code>ff-display on</code> forces power on; presence daemon and
+wake listener both fail-open, so a blank screen usually means sway
+isn&#39;t running — check tty1 auto-login (<code>systemctl status getty@tty1</code>)
+and <code>~/.zprofile</code>&#39;s DRM guard.</li>
+<li><strong>Tiles missing after an update</strong>: <code>pkill -x ff-board</code> — the tiles
+respawn; or <code>ff-kiosk-restart</code>.</li>
+</ul>
+<h2>Tmux</h2>
+<p>The prefix is <strong><code>Ctrl-a</code></strong> (not tmux&#39;s default <code>Ctrl-b</code>):</p>
+<pre><code class="language-bash">echo $TMUX                      # confirm you&#39;re inside tmux
+tmux list-keys | grep -w C-a    # confirm the prefix bindings loaded
+</code></pre>
+<p>No plugin manager is installed — if <code>~/.tmux/plugins/</code> exists, something
+else put it there.</p>
+<h2>Zsh</h2>
+<pre><code class="language-bash">chmod 600 ~/.zsh_history        # history not saving
+chsh -s /usr/bin/zsh            # shell didn&#39;t change
+rm ~/.zcompdump*; exec zsh      # stale completion cache
+</code></pre>
+<h2>System</h2>
+<pre><code class="language-bash">sudo pacman -Sy                 # refresh db if installs fail
+df -h /                         # disk space
+systemctl --failed              # anything red
+journalctl -p err -b            # errors this boot
+</code></pre>
+<p>When an update breaks the system on a btrfs root: reboot into the GRUB
+<strong>Snapshots</strong> submenu and boot the pre-transaction snapshot (snap-pac
+creates one around every pacman run).</p>
+<h2>Recovery</h2>
+<h3>Reset configuration</h3>
+<pre><code class="language-bash">cd ~/farfield-os
+sudo ./scripts/setup.sh         # re-applies configs (backs up ~/.zshrc first)
+</code></pre>
+<h3>Emergency console access</h3>
+<ol>
+<li><code>Ctrl+Alt+F2</code> for a spare TTY (tty1 belongs to the kiosk when a
+display is attached)</li>
+<li>Log in, fix, switch back with <code>Ctrl+Alt+F1</code></li>
+</ol>
+
+
+  </main>
+</div>
+<footer>
+  <span class="note">Farfield OS · MIT</span>
+</footer>
+</body>
+</html>

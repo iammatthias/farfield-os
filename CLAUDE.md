@@ -159,6 +159,9 @@ all per-user work runs through `sudo -u "$REAL_USER"`.
   `configs/zshrc`; don't hand-edit `/srv/stack/Caddyfile`.
 - To change the package set, edit the two `pacman -S` blocks at the top of
   `scripts/setup.sh`.
+- After editing `README.md` or `docs/*.md`, regenerate the os.farfield.systems
+  doc pages so they don't drift: `python3 scripts/build-os-docs.py . stack/homepage`
+  and commit the refreshed `stack/homepage/docs/`.
 
 ## Documentation
 

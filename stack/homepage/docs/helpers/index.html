@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e192a">
+<title>Helpers — Farfield OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'><rect%20width='64'%20height='64'%20rx='12'%20fill='%230e222d'/><circle%20cx='32'%20cy='32'%20r='13'%20fill='none'%20stroke='%23f3e5d1'%20stroke-width='2'%20opacity='.8'/><circle%20cx='32'%20cy='32'%20r='3.5'%20fill='%23e59f67'/></svg>">
+<meta name="description" content="Helpers — Farfield OS documentation. An opinionated home-server bootstrap for Arch Linux.">
+<link rel="canonical" href="https://os.farfield.systems/docs/helpers/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="farfield">
+<meta property="og:title" content="Helpers — Farfield OS">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<link rel="stylesheet" href="/docs/docs.css">
+</head>
+<body>
+<header class="bar">
+  <a href="/" class="brand">farfield&nbsp;os</a>
+  <nav class="crumbs" aria-label="Site">
+    <a href="/docs/" aria-current="page">Docs</a>
+    <a href="https://github.com/iammatthias/farfield-os">Source</a>
+    <a href="https://farfield.systems/">Fleet</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside>
+    <nav class="side" aria-label="Docs">
+      <a href="/docs/">Overview</a>
+      <a href="/docs/helpers/" aria-current="page">Helpers</a>
+      <a href="/docs/configuration/">Configuration</a>
+      <a href="/docs/troubleshooting/">Troubleshooting</a>
+    </nav>
+  </aside>
+  <main class="doc">
+<h1>farfield os helpers</h1>
+<p>Quick reference for the aliases, functions, and tools that farfield os sets up.
+Run <code>ff-help</code> on the box for a printed cheat sheet, or <code>ff-aliases</code> /
+<code>ff-functions</code> for an fzf-driven search.</p>
+<h2>Tmux</h2>
+<p>Prefix is <strong><code>Ctrl-a</code></strong> (not the default <code>Ctrl-b</code>).</p>
+<h3>Sessions</h3>
+<pre><code class="language-bash">t              # tmux
+tn &lt;name&gt;      # new named session
+ta &lt;name&gt;      # attach
+tl             # list sessions
+tk &lt;name&gt;      # kill session
+</code></pre>
+<h3>Inside tmux (prefix <code>Ctrl-a</code>)</h3>
+<pre><code class="language-text">Ctrl-a v         split window vertically (pane to the right)
+Ctrl-a s         split window horizontally (pane below)
+Ctrl-a h/j/k/l   navigate panes (vim-style)
+Ctrl-a c         new window
+Ctrl-a n / p     next / previous window
+Ctrl-a 0-9       jump to window N
+Ctrl-a x         close current pane
+Ctrl-a z         toggle pane zoom
+Ctrl-a d         detach (session keeps running)
+Ctrl-a r         reload ~/.tmux.conf
+Ctrl-a [         enter copy mode (vim keys)
+Ctrl-a ?         list all bindings
+</code></pre>
+<p>Sessions survive disconnects — <code>tmux attach</code> after re-<code>ssh</code> to pick up where
+you left off. No plugin manager is installed; if you want one, see
+<a href="https://github.com/tmux-plugins/tpm">tpm</a>.</p>
+<h2>Caddy site management</h2>
+<p>Defined as zsh functions; they edit <code>/srv/stack/Caddyfile</code> (with a backup)
+and reload the caddy container on success. Caddy runs in the <code>/srv/stack</code>
+docker-compose stack, so reloads go through <code>docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile</code> — the <code>--config</code> flag is
+required (the image&#39;s workdir has no Caddyfile without it).</p>
+<pre><code class="language-bash">add-site &lt;name&gt; &lt;port&gt;         # reverse proxy: name.local:80 -&gt; localhost:port
+add-site &lt;name&gt; /path/to/dir   # static files: name.local:80 serves dir
+add-public-site &lt;host&gt; &lt;port&gt;  # public site via the Cloudflare Tunnel connector
+add-preview-site &lt;name&gt; &lt;port&gt; # tailnet-private preview at &lt;name&gt;.$PREVIEW_APEX
+remove-preview-site &lt;name&gt;     # remove a preview site
+list-preview-sites             # list preview handles
+list-sites                     # list configured virtual hosts
+remove-site &lt;name&gt;             # remove a site block
+test-caddy                     # caddy validate (inside the container)
+caddy-status                   # compose ps + recent container logs
+caddy-edit                     # $EDITOR /srv/stack/Caddyfile
+caddy-reload                   # caddy reload --config /etc/caddy/Caddyfile (in-container)
+caddy-restart                  # docker compose restart caddy
+caddy-logs                     # docker compose logs -f caddy
+</code></pre>
+<h2>Kiosk dashboard (attached display)</h2>
+<p>farfield os is headless by default, but <code>setup.sh</code> also installs <strong>sway</strong>
+(Wayland compositor) + <code>foot</code> and configures <code>getty@tty1</code> to auto-log
+the user in. When a display is plugged into the box, on next login
+<code>~/.zprofile</code> exec&#39;s <code>sway</code>, and <code>ff-kiosk-tiles</code> arranges the
+dashboard as <strong>six tiles</strong> — one foot window per <code>ff-board</code> panel,
+in a 3×2 grid with gaps and farfield-brand borders (Horizon orange on
+the focused tile):</p>
+<pre><code>╭ CPU ─────────╮ ╭ MEM ─────────╮ ╭ NET ─────────╮
+│ heat-gradient│ │ used graph + │ │ ↓↑ rates +   │
+│ graph + cores│ │ swap         │ │ peak graphs  │
+╰──────────────╯ ╰──────────────╯ ╰──────────────╯
+╭ DISK ────────╮ ╭ CONTAINERS ──╮ ╭ STATUS ──────╮
+│ gauge + io   │ │ CPU/MEM      │ │ services ·   │
+│ r/w graphs   │ │ sparklines   │ │ sites · procs│
+╰──────────────╯ ╰──────────────╯ ╰──────────────╯
+</code></pre>
+<p>The compositor owns the mosaic: every tile is a real window you can
+focus, swap, zoom, or kill (it respawns), and sway supplies the gaps
+and borders. sway (rather than a minimal dwl-style WM) because it
+exposes <code>wl_touch</code> — on a touch panel, tapping a tile fullscreens it
+(back button top-left), and the fullscreen OPS view carries on-screen
+action buttons (update / kiosk↻ / stack↻ / prune / reboot, two-tap
+confirm on the destructive ones). Each panel process only runs the
+samplers it displays. <code>ff-board</code> (no args) renders the whole board
+in one terminal — that&#39;s what <code>ff-dashboard</code> runs in tmux for ssh
+sessions, where there&#39;s no compositor:</p>
+<p>Host metrics are sampled natively from <code>/proc</code> + <code>/sys</code> (CPU total +
+per-core, memory/swap, default-route NIC throughput, whole-disk I/O,
+hwmon temperature); container CPU/MEM sparklines + net rates come
+straight off the Docker socket every 2s. Rendering is diff-based —
+no flicker, no full repaints. <code>q</code> quits (the kiosk respawns it).</p>
+<p>If <code>ff-board</code> isn&#39;t built (no cargo at setup time), the dashboard
+falls back to btop + the shell boards (<code>ff-metrics-board</code> +
+<code>ff-status-board</code>), which remain installed as one-shot CLIs.</p>
+<p>You can also run <code>ff-dashboard</code> from any shell — it attaches the
+same session if it already exists, or builds it. Run over plain ssh
+(no tty) it creates/refreshes the session detached, which is how you
+rebuild the kiosk layout remotely.</p>
+<p>The dashboard helpers are stand-alone too:</p>
+<pre><code class="language-bash">ff-metrics-board     # container CPU/MEM sparklines + net + host (one-shot)
+ff-status-board      # the unified dashboard board (one-shot)
+ff-services-status   # Caddy sites + service health (one-shot)
+ff-docker-status     # docker containers + pm2 processes
+ff-claude-stats      # Claude Code sessions + token usage
+ff-deploy &lt;name&gt;     # git pull + rebuild a project under ~/projects
+ff-bootstrap         # interactive post-install (tailscale, claude login)
+</code></pre>
+<p><code>ff-claude-stats</code> reads <code>~/.claude/projects/*/*.jsonl</code> to compute
+total token usage across all sessions, count active <code>claude</code> processes,
+and break down sessions by project. Token computation is skipped if
+total session data exceeds 50 MB.</p>
+<p>To swap the dashboard for something else, edit
+<code>~/.config/sway/config</code> and replace <code>exec ff-kiosk-tiles</code> with e.g.:</p>
+<pre><code>exec foot --fullscreen -e ff-board       # whole board, one window
+exec foot --fullscreen -e btop
+</code></pre>
+<p><code>ff-kiosk-restart</code> re-applies the tile layout; <code>ff-kiosk-shot</code> grabs a
+screenshot of whatever the panel is showing (via grim); <code>ff-display on|auto|off|status</code> drives display power.</p>
+<p>In-sway keybindings (only matter if you walk up to the box):</p>
+<table>
+<thead>
+<tr>
+<th>Keybinding</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Super + F</code></td>
+<td>Toggle fullscreen</td>
+</tr>
+<tr>
+<td><code>Super + Shift + R</code></td>
+<td>Reload the sway config</td>
+</tr>
+<tr>
+<td><code>Super + Shift + Q</code></td>
+<td>Quit sway</td>
+</tr>
+</tbody></table>
+<h2>Snapshots (btrfs only)</h2>
+<p>If your root is btrfs, <code>setup.sh</code> configures Snapper and <code>snap-pac</code>:</p>
+<ul>
+<li><code>snap-pac</code> auto-snapshots <strong>before and after every pacman transaction</strong> —
+so a bad <code>pacman -Syu</code> is recoverable in 30 seconds.</li>
+<li><code>snapper-timeline.timer</code> keeps rolling snapshots: 5 hourly, 7 daily,
+2 weekly, 1 monthly.</li>
+<li><code>snapper-cleanup.timer</code> prunes old snapshots automatically.</li>
+<li>On GRUB systems, <code>grub-btrfs</code> adds a &quot;Snapshots&quot; submenu so you can
+boot into any snapshot when an update breaks the system.</li>
+<li><code>chattr +C</code> is set on <code>/var/lib/postgres</code>, <code>/var/lib/valkey</code>, and
+<code>/var/lib/docker</code> to skip CoW on database/container files (these
+get tons of small random writes; CoW makes them slow + bloats
+snapshot sizes).</li>
+</ul>
+<pre><code class="language-bash">snapper -c root list                    # list snapshots
+snapper -c root create -d &quot;before X&quot;    # manual snapshot with description
+snapper -c root status N..M             # diff between two snapshots
+snapper -c root undochange N..M         # selectively revert files
+snapper -c root delete N                # delete a specific snapshot
+</code></pre>
+<p>If a <code>pacman -Syu</code> breaks boot: reboot, hold Shift to enter GRUB, pick
+&quot;Arch Linux snapshots&quot; submenu, choose the most recent pre-update entry,
+boot into it (read-only), then either <code>snapper rollback</code> from there or
+<code>btrfs subvolume set-default</code> to make it the new root.</p>
+<p>systemd-boot users: GRUB-style boot-into-snapshot is GRUB-only. Snapper
+itself still works (so <code>undochange</code> and timeline retention are useful),
+but recovery from a non-bootable system needs a USB.</p>
+<h2>PM2</h2>
+<pre><code class="language-bash">pm2-start &lt;ecosystem.config.js&gt;   # start an ecosystem file
+pm2-add-site &lt;name&gt; &lt;port&gt; &lt;eco&gt;  # pm2-start + add-site in one shot
+pm2-remove &lt;name&gt;
+pm2-restart &lt;name&gt;
+pm2-logs &lt;name&gt;
+pm2-status                        # pm2 list + Caddy site list
+</code></pre>
+<h2>System status</h2>
+<pre><code class="language-bash">system-status      # uptime, load, memory, disk, top procs, listening ports
+db-status          # postgresql + valkey systemd status + connection counts
+security-status    # ufw + fail2ban + sshd status
+port-check &lt;port&gt;  # is anything listening on this port?
+ff-info          # fastfetch machine report (TR-100 style)
+ff-update        # pacman -Syu + cache clean (--yes: unattended via systemd-run)
+ff-help          # full alias / function reference
+</code></pre>
+<h2>File operations</h2>
+<pre><code class="language-bash">ls / ll / la / lf / lt / tree     # eza variants (icons, --git, --tree, …)
+cat                                # bat (paged, syntax-highlighted)
+less                               # bat with paging
+df / du / free                     # human-readable (-h)
+e                                  # nvim
+mkcd &lt;dir&gt;                         # mkdir + cd
+</code></pre>
+<h2>Navigation</h2>
+<pre><code class="language-bash">.. ... .... ..... ......           # cd up N levels
+~                                  # cd ~
+-                                  # cd -
+cdp / cdd / cdt / cdl / cde        # ~/projects, ~/Downloads, /tmp, /var/log, /etc
+up &lt;n&gt;                             # cd ../../… n times (function)
+</code></pre>
+<p><code>zoxide</code> is initialized — once you&#39;ve <code>cd</code>&#39;d into a directory, <code>z partial</code>
+will jump back without typing the full path.</p>
+<h2>Git</h2>
+<pre><code class="language-bash">g gs ga gc gp gl gd gb gco         # short forms
+glog                               # git log --oneline --graph --decorate
+</code></pre>
+<h2>Docker</h2>
+<pre><code class="language-bash">dkr      # docker
+dkc      # docker compose
+dkps     # docker ps
+dkpa     # docker ps -a
+dki      # docker images
+dkex     # docker exec -it
+</code></pre>
+<h2>AUR (yay)</h2>
+<pre><code class="language-bash">yay-update / yay-install / yay-remove / yay-search / yay-info
+</code></pre>
+<h2>Misc</h2>
+<pre><code class="language-bash">ff                     # fastfetch
+myip                   # public IP (curl ifconfig.me)
+localip                # local IPv4 addresses
+ports                  # ss -tulpn
+sqlite                 # sqlite3
+smart                  # sudo smartctl -a
+ufw-status / fail2ban-status
+nmap-local             # nmap -sn 192.168.1.0/24
+nmap-scan              # nmap -sS -O -F
+lsof-port &lt;port&gt;       # lsof -i :&lt;port&gt;
+c                      # clear
+reload                 # source ~/.zshrc
+</code></pre>
+<h2>Backup</h2>
+<pre><code class="language-bash">backup-system    # snapshot /srv/stack/Caddyfile, /etc/{ssh,ufw,fail2ban},
+                 # ~/.zshrc, ~/.tmux.conf to ~/backups/&lt;timestamp&gt;
+</code></pre>
+<h2>Adding your own</h2>
+<p>Drop functions/aliases into <code>~/.zshrc</code> and <code>source ~/.zshrc</code>. Or, for a
+cleaner override pattern, create <code>~/.zshrc.local</code> and add this near the top
+of <code>~/.zshrc</code>:</p>
+<pre><code class="language-bash">[ -f &quot;$HOME/.zshrc.local&quot; ] &amp;&amp; source &quot;$HOME/.zshrc.local&quot;
+</code></pre>
+<p>Editing <code>~/.zshrc</code> in place works fine — re-running <code>setup.sh</code> will back up
+the existing file as <code>~/.zshrc.ff-backup.&lt;timestamp&gt;</code> before reinstalling.</p>
+
+
+  </main>
+</div>
+<footer>
+  <span class="note">Farfield OS · MIT</span>
+</footer>
+</body>
+</html>
