@@ -111,7 +111,9 @@ aside{position:sticky;top:1.5rem;align-self:start}
 .side a:hover{opacity:1;background:var(--wash)}
 .side a[aria-current]{opacity:1;background:var(--wash);font-weight:500}
 @media (max-width:52rem){
-  .layout{grid-template-columns:1fr;gap:1.5rem}
+  /* minmax(0,…) matters: bare 1fr's min-content floor lets a long code
+     line push the column wider than the viewport, clipping all prose. */
+  .layout{grid-template-columns:minmax(0,1fr);gap:1.5rem}
   aside{position:static}
   .side{flex-direction:row;flex-wrap:wrap;gap:.25rem}
 }
