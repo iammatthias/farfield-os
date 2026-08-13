@@ -36,13 +36,12 @@
   </aside>
   <main class="doc">
 <h1>Configuration</h1>
-<p>Customization recipes for a farfield os box. Every file the bootstrap
-installs is tracked in <code>configs/</code> — the durable way to change behavior is
-to edit there and re-run <code>sudo ./scripts/setup.sh</code> (or copy the file into
-place); one-off edits on the box work but drift from the repo.</p>
+<p>Every file the bootstrap installs is tracked in <code>configs/</code>. To change
+behavior durably, edit there and re-run <code>sudo ./scripts/setup.sh</code>.
+One-off edits on the box work, but they drift from the repo.</p>
 <h2>Shell (<code>configs/zshrc</code> → <code>~/.zshrc</code>)</h2>
-<p>Add machine-local tweaks at the bottom of <code>~/.zshrc</code>, or keep them in the
-repo if they&#39;re worth versioning. Highlights you may want to adjust:</p>
+<p>Put machine-local tweaks in <code>~/.zshrc.local</code>. It loads last and wins.
+Common adjustments:</p>
 <pre><code class="language-bash"># History (default 1.2M, shared across sessions)
 HISTSIZE=1200000
 

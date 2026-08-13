@@ -37,17 +37,18 @@
   <main class="doc">
 <h1>Troubleshooting</h1>
 <h2>SSH</h2>
-<h3>Every new connection drops at the handshake, existing sessions fine</h3>
-<p>An openssh upgrade without an sshd restart — the old listener can&#39;t exec
-the new per-session binary. <code>ff-update</code> restarts sshd automatically after
-openssh upgrades; if you upgraded by hand, from any still-open session:</p>
+<h3>New connections drop at the handshake. Existing sessions work.</h3>
+<p>An openssh upgrade ran without an sshd restart. The old listener cannot
+start the new per-session binary. <code>ff-update</code> restarts sshd after
+openssh upgrades. If you upgraded by hand, run this from a still-open
+session:</p>
 <pre><code class="language-bash">sudo systemctl try-restart sshd   # does NOT drop existing sessions
 </code></pre>
 <p>No open session? Physical console (or reboot).</p>
-<h3>Typed input garbles / autocomplete breaks over ssh</h3>
-<p>Your terminal&#39;s terminfo entry is missing on the box (Ghostty sends
-<code>TERM=xterm-ghostty</code>; setup installs <code>ghostty-terminfo</code>). Quick fix from
-the client for other terminals: <code>infocmp -x | ssh box &#39;tic -x -&#39;</code>.</p>
+<h3>Typed input garbles over ssh</h3>
+<p>The box does not have your terminal&#39;s terminfo entry. Setup installs
+<code>ghostty-terminfo</code>. For other terminals, push the entry from the client:
+<code>infocmp -x | ssh box &#39;tic -x -&#39;</code>.</p>
 <h2>Ingress stack</h2>
 <pre><code class="language-bash">cd /srv/stack
 docker compose ps                  # tailscale must be healthy first —
@@ -98,9 +99,9 @@ df -h /                         # disk space
 systemctl --failed              # anything red
 journalctl -p err -b            # errors this boot
 </code></pre>
-<p>When an update breaks the system on a btrfs root: reboot into the GRUB
-<strong>Snapshots</strong> submenu and boot the pre-transaction snapshot (snap-pac
-creates one around every pacman run).</p>
+<p>If an update breaks the system on a btrfs root: reboot, open the GRUB
+<strong>Snapshots</strong> submenu, and boot the pre-transaction snapshot. snap-pac
+makes one around every pacman run.</p>
 <h2>Recovery</h2>
 <h3>Reset configuration</h3>
 <pre><code class="language-bash">cd ~/farfield-os

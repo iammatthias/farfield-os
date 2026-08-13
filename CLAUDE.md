@@ -58,8 +58,8 @@ in ~/.local/bin): ssh in and run `claude` to manage the box or work on
 projects. Auth (subscription OAuth) is interactive — `ff-bootstrap`
 walks it once post-install.
 
-It is intentionally heavy — this is a personal home-server bootstrap, not a
-"minimal TTY" distribution.
+It is intentionally complete — a personal home-server bootstrap that
+installs everything its owner uses, not a "minimal TTY" distribution.
 
 ## Repository Structure
 

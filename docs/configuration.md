@@ -1,14 +1,13 @@
 # Configuration
 
-Customization recipes for a farfield os box. Every file the bootstrap
-installs is tracked in `configs/` — the durable way to change behavior is
-to edit there and re-run `sudo ./scripts/setup.sh` (or copy the file into
-place); one-off edits on the box work but drift from the repo.
+Every file the bootstrap installs is tracked in `configs/`. To change
+behavior durably, edit there and re-run `sudo ./scripts/setup.sh`.
+One-off edits on the box work, but they drift from the repo.
 
 ## Shell (`configs/zshrc` → `~/.zshrc`)
 
-Add machine-local tweaks at the bottom of `~/.zshrc`, or keep them in the
-repo if they're worth versioning. Highlights you may want to adjust:
+Put machine-local tweaks in `~/.zshrc.local`. It loads last and wins.
+Common adjustments:
 
 ```bash
 # History (default 1.2M, shared across sessions)

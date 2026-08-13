@@ -2,19 +2,20 @@
 
 ## SSH
 
-### Every new connection drops at the handshake, existing sessions fine
-An openssh upgrade without an sshd restart — the old listener can't exec
-the new per-session binary. `ff-update` restarts sshd automatically after
-openssh upgrades; if you upgraded by hand, from any still-open session:
+### New connections drop at the handshake. Existing sessions work.
+An openssh upgrade ran without an sshd restart. The old listener cannot
+start the new per-session binary. `ff-update` restarts sshd after
+openssh upgrades. If you upgraded by hand, run this from a still-open
+session:
 ```bash
 sudo systemctl try-restart sshd   # does NOT drop existing sessions
 ```
 No open session? Physical console (or reboot).
 
-### Typed input garbles / autocomplete breaks over ssh
-Your terminal's terminfo entry is missing on the box (Ghostty sends
-`TERM=xterm-ghostty`; setup installs `ghostty-terminfo`). Quick fix from
-the client for other terminals: `infocmp -x | ssh box 'tic -x -'`.
+### Typed input garbles over ssh
+The box does not have your terminal's terminfo entry. Setup installs
+`ghostty-terminfo`. For other terminals, push the entry from the client:
+`infocmp -x | ssh box 'tic -x -'`.
 
 ## Ingress stack
 
@@ -79,9 +80,9 @@ systemctl --failed              # anything red
 journalctl -p err -b            # errors this boot
 ```
 
-When an update breaks the system on a btrfs root: reboot into the GRUB
-**Snapshots** submenu and boot the pre-transaction snapshot (snap-pac
-creates one around every pacman run).
+If an update breaks the system on a btrfs root: reboot, open the GRUB
+**Snapshots** submenu, and boot the pre-transaction snapshot. snap-pac
+makes one around every pacman run.
 
 ## Recovery
 

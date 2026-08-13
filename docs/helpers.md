@@ -1,8 +1,8 @@
 # farfield os helpers
 
-Quick reference for the aliases, functions, and tools that farfield os sets up.
-Run `ff-help` on the box for a printed cheat sheet, or `ff-aliases` /
-`ff-functions` for an fzf-driven search.
+The aliases, functions, and tools the bootstrap sets up. Run `ff-help`
+on the box for the printed sheet. Run `ff-aliases` or `ff-functions` for
+an fzf search.
 
 ## herdr — persistent sessions
 
