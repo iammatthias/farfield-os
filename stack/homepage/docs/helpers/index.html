@@ -57,7 +57,7 @@ applies changes live).</p>
 <p>Defined as zsh functions; they edit <code>/srv/stack/Caddyfile</code> (with a backup)
 and reload the caddy container on success. Caddy runs in the <code>/srv/stack</code>
 docker-compose stack, so reloads go through <code>docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile</code> — the <code>--config</code> flag is
-required (the image&#39;s workdir has no Caddyfile without it).</p>
+required (the image's workdir has no Caddyfile without it).</p>
 <pre><code class="language-bash">add-site &lt;name&gt; &lt;port&gt;         # reverse proxy: name.local:80 -&gt; localhost:port
 add-site &lt;name&gt; /path/to/dir   # static files: name.local:80 serves dir
 add-public-site &lt;host&gt; &lt;port&gt;  # public site via the Cloudflare Tunnel connector
@@ -77,7 +77,7 @@ caddy-logs                     # docker compose logs -f caddy
 <p>farfield os is headless by default, but <code>setup.sh</code> also installs <strong>sway</strong>
 (Wayland compositor) + <code>foot</code> and configures <code>getty@tty1</code> to auto-log
 the user in. When a display is plugged into the box, on next login
-<code>~/.zprofile</code> exec&#39;s <code>sway</code>, and <code>ff-kiosk-tiles</code> arranges the
+<code>~/.zprofile</code> exec's <code>sway</code>, and <code>ff-kiosk-tiles</code> arranges the
 dashboard as <strong>six tiles</strong> — one foot window per <code>ff-board</code> panel,
 in a 3×2 grid with gaps and farfield-brand borders (Horizon orange on
 the focused tile):</p>
@@ -98,14 +98,14 @@ exposes <code>wl_touch</code> — on a touch panel, tapping a tile fullscreens i
 action buttons (update / kiosk↻ / stack↻ / prune / reboot, two-tap
 confirm on the destructive ones). Each panel process only runs the
 samplers it displays. <code>ff-board</code> (no args) renders the whole board
-in one terminal — that&#39;s what <code>ff-dashboard</code> execs for ssh
-sessions, where there&#39;s no compositor (run it inside herdr to persist):</p>
+in one terminal — that's what <code>ff-dashboard</code> execs for ssh
+sessions, where there's no compositor (run it inside herdr to persist):</p>
 <p>Host metrics are sampled natively from <code>/proc</code> + <code>/sys</code> (CPU total +
 per-core, memory/swap, default-route NIC throughput, whole-disk I/O,
 hwmon temperature); container CPU/MEM sparklines + net rates come
 straight off the Docker socket every 2s. Rendering is diff-based —
 no flicker, no full repaints. <code>q</code> quits (the kiosk respawns it).</p>
-<p>If <code>ff-board</code> isn&#39;t built (no cargo at setup time), the dashboard
+<p>If <code>ff-board</code> isn't built (no cargo at setup time), the dashboard
 falls back to btop + the shell boards (<code>ff-metrics-board</code> +
 <code>ff-status-board</code>), which remain installed as one-shot CLIs.</p>
 <p>You can also run <code>ff-dashboard</code> from any shell — it attaches the
@@ -140,7 +140,8 @@ screenshot of whatever the panel is showing (via grim); <code>ff-display on|auto
 <th>Action</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td><code>Super + F</code></td>
 <td>Toggle fullscreen</td>
 </tr>
@@ -152,7 +153,8 @@ screenshot of whatever the panel is showing (via grim); <code>ff-display on|auto
 <td><code>Super + Shift + Q</code></td>
 <td>Quit sway</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
 <h2>Snapshots (btrfs only)</h2>
 <p>If your root is btrfs, <code>setup.sh</code> configures Snapper and <code>snap-pac</code>:</p>
 <ul>
@@ -213,7 +215,7 @@ mkcd &lt;dir&gt;                         # mkdir + cd
 cdp / cdd / cdt / cdl / cde        # ~/projects, ~/Downloads, /tmp, /var/log, /etc
 up &lt;n&gt;                             # cd ../../… n times (function)
 </code></pre>
-<p><code>zoxide</code> is initialized — once you&#39;ve <code>cd</code>&#39;d into a directory, <code>z partial</code>
+<p><code>zoxide</code> is initialized — once you've <code>cd</code>'d into a directory, <code>z partial</code>
 will jump back without typing the full path.</p>
 <h2>Git</h2>
 <pre><code class="language-bash">g gs ga gc gp gl gd gb gco         # short forms
@@ -256,7 +258,6 @@ of <code>~/.zshrc</code>:</p>
 </code></pre>
 <p>Editing <code>~/.zshrc</code> in place works fine — re-running <code>setup.sh</code> will back up
 the existing file as <code>~/.zshrc.ff-backup.&lt;timestamp&gt;</code> before reinstalling.</p>
-
 
   </main>
 </div>

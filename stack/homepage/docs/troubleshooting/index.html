@@ -46,9 +46,9 @@ session:</p>
 </code></pre>
 <p>No open session? Physical console (or reboot).</p>
 <h3>Typed input garbles over ssh</h3>
-<p>The box does not have your terminal&#39;s terminfo entry. Setup installs
+<p>The box does not have your terminal's terminfo entry. Setup installs
 <code>ghostty-terminfo</code>. For other terminals, push the entry from the client:
-<code>infocmp -x | ssh box &#39;tic -x -&#39;</code>.</p>
+<code>infocmp -x | ssh box 'tic -x -'</code>.</p>
 <h2>Ingress stack</h2>
 <pre><code class="language-bash">cd /srv/stack
 docker compose ps                  # tailscale must be healthy first —
@@ -64,7 +64,7 @@ boot).</li>
 logs. Site helpers keep a <code>.bak</code> of the previous Caddyfile.</li>
 <li><strong>Public site 502s</strong>: check cloudflared is running and
 <code>COMPOSE_PROFILES=cloudflared</code> is set in <code>/srv/stack/.env</code>.</li>
-<li><strong>Container can&#39;t reach a host service</strong>: host ports are proxied via
+<li><strong>Container can't reach a host service</strong>: host ports are proxied via
 <code>host.docker.internal</code>; UFW must allow docker subnets
 (<code>ufw allow from 172.16.0.0/12</code> — setup does this).</li>
 </ul>
@@ -76,13 +76,13 @@ ff-display status        # display power state
 <ul>
 <li><strong>Blank display</strong>: <code>ff-display on</code> forces power on; presence daemon and
 wake listener both fail-open, so a blank screen usually means sway
-isn&#39;t running — check tty1 auto-login (<code>systemctl status getty@tty1</code>)
-and <code>~/.zprofile</code>&#39;s DRM guard.</li>
+isn't running — check tty1 auto-login (<code>systemctl status getty@tty1</code>)
+and <code>~/.zprofile</code>'s DRM guard.</li>
 <li><strong>Tiles missing after an update</strong>: <code>pkill -x ff-board</code> — the tiles
 respawn; or <code>ff-kiosk-restart</code>.</li>
 </ul>
 <h2>herdr</h2>
-<p>Persistent sessions live in herdr&#39;s background server:</p>
+<p>Persistent sessions live in herdr's background server:</p>
 <pre><code class="language-bash">herdr status server             # is the server up?
 herdr session list              # what sessions exist
 herdr                           # launch/attach the persistent session
@@ -90,7 +90,7 @@ herdr                           # launch/attach the persistent session
 <p>If the server wedges: <code>herdr server stop</code>, then run <code>herdr</code> again.</p>
 <h2>Zsh</h2>
 <pre><code class="language-bash">chmod 600 ~/.zsh_history        # history not saving
-chsh -s /usr/bin/zsh            # shell didn&#39;t change
+chsh -s /usr/bin/zsh            # shell didn't change
 rm ~/.zcompdump*; exec zsh      # stale completion cache
 </code></pre>
 <h2>System</h2>
@@ -113,7 +113,6 @@ sudo ./scripts/setup.sh         # re-applies configs (backs up ~/.zshrc first)
 display is attached)</li>
 <li>Log in, fix, switch back with <code>Ctrl+Alt+F1</code></li>
 </ol>
-
 
   </main>
 </div>

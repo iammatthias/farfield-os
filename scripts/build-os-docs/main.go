@@ -1,27 +1,158 @@
-#!/usr/bin/env python3
-"""Build the static /docs/ pages for os.farfield.systems from the
-farfield-os repo's markdown. Markdown → HTML via `npx marked --gfm`,
-wrapped in a shared dark brand layout with a sidebar. Intra-repo .md links
-are rewritten to the clean /docs/ URLs; the README banner image is dropped
-(the site has its own hero)."""
+// Command build-os-docs builds the static /docs/ pages for
+// os.farfield.systems from this repo's markdown: the README becomes the
+// Overview, docs/*.md become their own pages, all wrapped in the shared dark
+// brand layout with a sidebar. Markdown renders through goldmark (GFM), so
+// the whole generator is one `go run` — no python, no node, in keeping with
+// the rest of farfield.
+//
+// Usage:
+//
+//	go run ./scripts/build-os-docs <repo-root> <homepage-dir>
+//
+// Regenerate whenever README.md or docs/*.md change and commit the refreshed
+// pages — the markdown is the single source of truth; the site is a build
+// product of it.
+package main
 
-import re
-import subprocess
-import sys
-from pathlib import Path
+import (
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 
-REPO = Path(sys.argv[1])
-OUT = Path(sys.argv[2])
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer/html"
+)
 
-PAGES = [
-    # (slug, title, source, sidebar label)
-    ("", "Overview", REPO / "README.md", "Overview"),
-    ("helpers", "Helpers", REPO / "docs/helpers.md", "Helpers"),
-    ("configuration", "Configuration", REPO / "docs/configuration.md", "Configuration"),
-    ("troubleshooting", "Troubleshooting", REPO / "docs/troubleshooting.md", "Troubleshooting"),
-]
+// page is one generated docs page.
+type page struct {
+	Slug  string // "" is the docs index
+	Title string
+	Src   string // markdown source, relative to the repo root
+}
 
-LAYOUT = """<!DOCTYPE html>
+var pages = []page{
+	{"", "Overview", "README.md"},
+	{"helpers", "Helpers", "docs/helpers.md"},
+	{"configuration", "Configuration", "docs/configuration.md"},
+	{"troubleshooting", "Troubleshooting", "docs/troubleshooting.md"},
+}
+
+// md renders GitHub-flavored markdown. WithUnsafe passes raw HTML through,
+// the same trust model as rendering our own README.
+var md = goldmark.New(
+	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithRendererOptions(html.WithUnsafe()),
+)
+
+var bannerRe = regexp.MustCompile(`(?s)(<p>)?<img[^>]*banner\.jpg[^>]*>(</p>)?\s*`)
+
+// rewrite adapts repo-relative markdown artifacts to the site: the README
+// banner goes (the site has its own hero) and intra-repo .md links become
+// the clean /docs/ URLs.
+func rewrite(h string) string {
+	h = bannerRe.ReplaceAllString(h, "")
+	return strings.NewReplacer(
+		`href="docs/helpers.md"`, `href="/docs/helpers/"`,
+		`href="docs/configuration.md"`, `href="/docs/configuration/"`,
+		`href="docs/troubleshooting.md"`, `href="/docs/troubleshooting/"`,
+		`href="helpers.md"`, `href="/docs/helpers/"`,
+		`href="configuration.md"`, `href="/docs/configuration/"`,
+		`href="troubleshooting.md"`, `href="/docs/troubleshooting/"`,
+		`href="README.md"`, `href="/docs/"`,
+		`href="../README.md"`, `href="/docs/"`,
+	).Replace(h)
+}
+
+func navFor(active string) string {
+	var b strings.Builder
+	for _, p := range pages {
+		href := "/docs/"
+		if p.Slug != "" {
+			href += p.Slug + "/"
+		}
+		cur := ""
+		if p.Slug == active {
+			cur = ` aria-current="page"`
+		}
+		fmt.Fprintf(&b, "      <a href=%q%s>%s</a>\n", href, cur, p.Title)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func run(repo, out string) error {
+	docs := filepath.Join(out, "docs")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(docs, "docs.css"), []byte(css), 0o644); err != nil {
+		return err
+	}
+	// Content-hash the stylesheet URL: the zone's long browser TTL made a
+	// changed-but-same-URL docs.css sticky on phones. Every CSS change is
+	// a cold URL.
+	sum := md5.Sum([]byte(css))
+	cssv := hex.EncodeToString(sum[:])[:8]
+	for _, p := range pages {
+		src, err := os.ReadFile(filepath.Join(repo, p.Src))
+		if err != nil {
+			return err
+		}
+		var buf bytes.Buffer
+		if err := md.Convert(src, &buf); err != nil {
+			return err
+		}
+		content := rewrite(buf.String())
+		if p.Slug == "" {
+			// The overview opens with the system drawn, not just described:
+			// the observation figure lands after the intro, before the
+			// first h2.
+			content = strings.Replace(content, "<h2>", overviewDiagram+"<h2>", 1)
+		}
+		canon := ""
+		if p.Slug != "" {
+			canon = p.Slug + "/"
+		}
+		doc := strings.NewReplacer(
+			"{cssv}", cssv,
+			"{title}", p.Title,
+			"{canon}", canon,
+			"{active_docs}", ` aria-current="page"`,
+			"{nav}", navFor(p.Slug),
+			"{content}", content,
+		).Replace(layout)
+		dest := docs
+		if p.Slug != "" {
+			dest = filepath.Join(docs, p.Slug)
+			if err := os.MkdirAll(dest, 0o755); err != nil {
+				return err
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dest, "index.html"), []byte(doc), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("built /docs/%s  (%d bytes)\n", canon, len(doc))
+	}
+	return nil
+}
+
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Fprintln(os.Stderr, "usage: build-os-docs <repo-root> <homepage-dir>")
+		os.Exit(2)
+	}
+	if err := run(os.Args[1], os.Args[2]); err != nil {
+		fmt.Fprintln(os.Stderr, "build-os-docs:", err)
+		os.Exit(1)
+	}
+}
+
+const layout = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -63,9 +194,9 @@ LAYOUT = """<!DOCTYPE html>
 </footer>
 </body>
 </html>
-"""
+`
 
-CSS = """/* os.farfield.systems/docs — the dark brand, set for reading. */
+const css = `/* os.farfield.systems/docs — the dark brand, set for reading. */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 :root{
@@ -172,18 +303,9 @@ footer{max-width:72rem;margin-inline:auto;padding:0 clamp(1.25rem,4vw,2.5rem) 2.
   font-family:"IBM Plex Mono",ui-monospace,monospace;
   font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mist);
 }
-"""
+`
 
-
-def md_to_html(path: Path) -> str:
-    return subprocess.run(
-        ["npx", "--yes", "marked", "--gfm"],
-        input=path.read_text(),
-        capture_output=True, text=True, check=True,
-    ).stdout
-
-
-OVERVIEW_DIAGRAM = """<figure class="observation" aria-label="System diagram: the internet reaches the box through a Cloudflare tunnel; the tailnet reaches it through Tailscale; both land on Caddy, which routes to projects on host ports. A display gets the kiosk board.">
+const overviewDiagram = `<figure class="observation" aria-label="System diagram: the internet reaches the box through a Cloudflare tunnel; the tailnet reaches it through Tailscale; both land on Caddy, which routes to projects on host ports. A display gets the kiosk board.">
 <svg viewBox="0 0 700 280" role="img">
   <g style="font-family:'IBM Plex Mono',monospace;font-size:11px" fill="#f3e5d1">
     <!-- two ways in -->
@@ -217,60 +339,4 @@ OVERVIEW_DIAGRAM = """<figure class="observation" aria-label="System diagram: th
 </svg>
 <figcaption>Observation 01 · one box, two ways in, opt-in public surface</figcaption>
 </figure>
-"""
-
-
-def rewrite(html: str) -> str:
-    # Drop the README banner — the site has its own hero.
-    html = re.sub(r'<p><img[^>]*banner\.jpg[^>]*></p>\s*', "", html)
-    html = re.sub(r'<img[^>]*banner\.jpg[^>]*>', "", html)
-    # Intra-repo doc links → clean local URLs.
-    html = html.replace('href="docs/helpers.md"', 'href="/docs/helpers/"')
-    html = html.replace('href="docs/configuration.md"', 'href="/docs/configuration/"')
-    html = html.replace('href="docs/troubleshooting.md"', 'href="/docs/troubleshooting/"')
-    html = html.replace('href="helpers.md"', 'href="/docs/helpers/"')
-    html = html.replace('href="configuration.md"', 'href="/docs/configuration/"')
-    html = html.replace('href="troubleshooting.md"', 'href="/docs/troubleshooting/"')
-    html = html.replace('href="README.md"', 'href="/docs/"')
-    html = html.replace('href="../README.md"', 'href="/docs/"')
-    return html
-
-
-def nav_for(active: str) -> str:
-    rows = []
-    for slug, _, _, label in PAGES:
-        href = "/docs/" if slug == "" else f"/docs/{slug}/"
-        cur = ' aria-current="page"' if slug == active else ""
-        rows.append(f'      <a href="{href}"{cur}>{label}</a>')
-    return "\n".join(rows)
-
-
-def main():
-    import hashlib
-    docs_out = OUT / "docs"
-    docs_out.mkdir(parents=True, exist_ok=True)
-    (docs_out / "docs.css").write_text(CSS)
-    cssv = hashlib.md5(CSS.encode()).hexdigest()[:8]
-    for slug, title, src, _ in PAGES:
-        content = rewrite(md_to_html(src))
-        if slug == "":
-            # The overview opens with the system drawn, not just described:
-            # inject the observation figure after the intro paragraphs,
-            # before the first h2.
-            content = content.replace("<h2>", OVERVIEW_DIAGRAM + "<h2>", 1)
-        page = LAYOUT.format(
-            cssv=cssv,
-            title=title,
-            canon="" if slug == "" else slug + "/",
-            active_docs=' aria-current="page"',
-            nav=nav_for(slug),
-            content=content,
-        )
-        dest = docs_out if slug == "" else docs_out / slug
-        dest.mkdir(parents=True, exist_ok=True)
-        (dest / "index.html").write_text(page)
-        print(f"built /docs/{slug + '/' if slug else ''}  ({len(page)} bytes)")
-
-
-if __name__ == "__main__":
-    main()
+`
