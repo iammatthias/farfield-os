@@ -51,7 +51,7 @@ aside{position:sticky;top:1.5rem;align-self:start}
   .side{flex-direction:row;flex-wrap:wrap;gap:.25rem}
 }
 
-.doc{max-width:42rem}
+.doc{max-width:42rem;min-width:0}
 .doc h1{
   font-family:"Newsreader",Georgia,serif;font-weight:500;
   font-size:clamp(1.9rem,4vw,2.5rem);line-height:1.05;letter-spacing:-.02em;
