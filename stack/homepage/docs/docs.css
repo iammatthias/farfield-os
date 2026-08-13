@@ -1,5 +1,6 @@
 /* os.farfield.systems/docs — the dark brand, set for reading. */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 :root{
   --sky:#0e192a;
   --paper:#f3e5d1;

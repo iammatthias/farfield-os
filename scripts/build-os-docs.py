@@ -37,7 +37,7 @@ LAYOUT = """<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
-<link rel="stylesheet" href="/docs/docs.css">
+<link rel="stylesheet" href="/docs/docs.css?v={cssv}">
 </head>
 <body>
 <header class="bar">
@@ -67,6 +67,7 @@ LAYOUT = """<!DOCTYPE html>
 
 CSS = """/* os.farfield.systems/docs — the dark brand, set for reading. */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 :root{
   --sky:#0e192a;
   --paper:#f3e5d1;
@@ -245,9 +246,11 @@ def nav_for(active: str) -> str:
 
 
 def main():
+    import hashlib
     docs_out = OUT / "docs"
     docs_out.mkdir(parents=True, exist_ok=True)
     (docs_out / "docs.css").write_text(CSS)
+    cssv = hashlib.md5(CSS.encode()).hexdigest()[:8]
     for slug, title, src, _ in PAGES:
         content = rewrite(md_to_html(src))
         if slug == "":
@@ -256,6 +259,7 @@ def main():
             # before the first h2.
             content = content.replace("<h2>", OVERVIEW_DIAGRAM + "<h2>", 1)
         page = LAYOUT.format(
+            cssv=cssv,
             title=title,
             canon="" if slug == "" else slug + "/",
             active_docs=' aria-current="page"',
