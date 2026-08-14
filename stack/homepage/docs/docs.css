@@ -7,6 +7,8 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   --horizon:#e59f67;
   --mist:#9babb3;
   --border:rgba(243,229,209,.14);
+  --line-strong:rgba(243,229,209,.38);
+  --panel:#132f3d;
   --wash:rgba(243,229,209,.05);
 }
 body{
@@ -92,10 +94,45 @@ aside{position:sticky;top:1.5rem;align-self:start}
 .doc blockquote{border-left:2px solid rgba(229,159,103,.55);padding-left:1rem;margin:1rem 0;opacity:.85}
 .doc hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
 
-.observation{margin:2.2rem 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch}
-/* The figure scrolls sideways at legible size instead of shrinking —
-   42rem keeps the 11px mono labels near full size for the 700px viewBox. */
-.observation svg{display:block;width:100%;height:auto;min-width:42rem}
+.observation{margin:2.2rem 0 0}
+.observation svg{display:block;width:100%;height:auto}
+
+/* The toggle rides its own line above the plate, right-aligned, so it can
+   never sit over a label at any width. Injected by docs.js. */
+.obs-expand{display:block;margin:0 0 .5rem auto;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.66rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);opacity:.55;background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:.32rem .6rem;cursor:pointer;transition:opacity .12s ease-out,border-color .12s ease-out}
+.obs-expand:hover{opacity:1;border-color:var(--line-strong)}
+.obs-expand:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
+
+/* Atmospheric motion (BRAND motion: 8-40s, reward attention, never glow).
+   Selectors are structural -- the dash pattern IS the trajectory -- so the
+   modal clone animates too without extra classes. Dotted private lines
+   deliberately stay still: motion means traffic. */
+@keyframes obs-drift{to{stroke-dashoffset:-32}}
+.observation svg [stroke-dasharray="4 4"],.obs-pan svg [stroke-dasharray="4 4"]{animation:obs-drift 14s linear infinite}
+@keyframes obs-breathe{0%,100%{opacity:.9}50%{opacity:.5}}
+.observation svg circle[stroke="#e59f67"],.obs-pan svg circle[stroke="#e59f67"]{animation:obs-breathe 6s ease-in-out infinite}
+
+/* Full view: the plate at reading scale, pannable. */
+.obs-dialog{margin:auto;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--paper);box-shadow:0 2px 4px rgba(0,0,0,.38),0 10px 28px rgba(0,0,0,.45);width:min(94vw,72rem);max-height:90vh}
+.obs-dialog::backdrop{background:rgba(10,16,24,.5)}
+.obs-dialog[open]{animation:obs-dialog-in .16s ease-out}
+@keyframes obs-dialog-in{from{opacity:0;transform:scale(.985)}}
+.obs-dialog-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1.25rem;border-bottom:1px solid var(--border)}
+.obs-dialog-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obs-close{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.66rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);opacity:.55;background:none;border:1px solid var(--border);border-radius:3px;padding:.32rem .6rem;cursor:pointer;transition:opacity .12s ease-out,border-color .12s ease-out}
+.obs-close:hover{opacity:1;border-color:var(--line-strong)}
+.obs-close:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
+.obs-pan{overflow:auto;-webkit-overflow-scrolling:touch;max-height:calc(90vh - 3.4rem);padding:1.25rem 1.25rem 1.5rem;cursor:grab}
+.obs-pan.dragging{cursor:grabbing;user-select:none}
+.obs-pan svg{display:block;height:auto}
+@media (max-width:640px){
+  .obs-dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border:0;border-radius:0}
+  .obs-pan{max-height:calc(100dvh - 3.4rem)}
+}
+@media (prefers-reduced-motion:reduce){
+  .observation svg *,.obs-pan svg *{animation:none !important}
+  .obs-dialog[open]{animation:none}
+}
 .observation figcaption{
   font-family:"IBM Plex Mono",ui-monospace,monospace;
   font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;

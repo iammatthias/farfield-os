@@ -98,6 +98,11 @@ func run(repo, out string) error {
 	// a cold URL.
 	sum := md5.Sum([]byte(css))
 	cssv := hex.EncodeToString(sum[:])[:8]
+	if err := os.WriteFile(filepath.Join(docs, "docs.js"), []byte(docsJS), 0o644); err != nil {
+		return err
+	}
+	jsum := md5.Sum([]byte(docsJS))
+	jsv := hex.EncodeToString(jsum[:])[:8]
 	for _, p := range pages {
 		src, err := os.ReadFile(filepath.Join(repo, p.Src))
 		if err != nil {
@@ -120,6 +125,7 @@ func run(repo, out string) error {
 		}
 		doc := strings.NewReplacer(
 			"{cssv}", cssv,
+			"{jsv}", jsv,
 			"{title}", p.Title,
 			"{canon}", canon,
 			"{active_docs}", ` aria-current="page"`,
@@ -169,6 +175,7 @@ const layout = `<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
 <link rel="stylesheet" href="/docs/docs.css?v={cssv}">
+<script defer src="/docs/docs.js?v={jsv}"></script>
 </head>
 <body>
 <header class="bar">
@@ -205,6 +212,8 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   --horizon:#e59f67;
   --mist:#9babb3;
   --border:rgba(243,229,209,.14);
+  --line-strong:rgba(243,229,209,.38);
+  --panel:#132f3d;
   --wash:rgba(243,229,209,.05);
 }
 body{
@@ -290,10 +299,45 @@ aside{position:sticky;top:1.5rem;align-self:start}
 .doc blockquote{border-left:2px solid rgba(229,159,103,.55);padding-left:1rem;margin:1rem 0;opacity:.85}
 .doc hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
 
-.observation{margin:2.2rem 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch}
-/* The figure scrolls sideways at legible size instead of shrinking —
-   42rem keeps the 11px mono labels near full size for the 700px viewBox. */
-.observation svg{display:block;width:100%;height:auto;min-width:42rem}
+.observation{margin:2.2rem 0 0}
+.observation svg{display:block;width:100%;height:auto}
+
+/* The toggle rides its own line above the plate, right-aligned, so it can
+   never sit over a label at any width. Injected by docs.js. */
+.obs-expand{display:block;margin:0 0 .5rem auto;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.66rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);opacity:.55;background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:.32rem .6rem;cursor:pointer;transition:opacity .12s ease-out,border-color .12s ease-out}
+.obs-expand:hover{opacity:1;border-color:var(--line-strong)}
+.obs-expand:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
+
+/* Atmospheric motion (BRAND motion: 8-40s, reward attention, never glow).
+   Selectors are structural -- the dash pattern IS the trajectory -- so the
+   modal clone animates too without extra classes. Dotted private lines
+   deliberately stay still: motion means traffic. */
+@keyframes obs-drift{to{stroke-dashoffset:-32}}
+.observation svg [stroke-dasharray="4 4"],.obs-pan svg [stroke-dasharray="4 4"]{animation:obs-drift 14s linear infinite}
+@keyframes obs-breathe{0%,100%{opacity:.9}50%{opacity:.5}}
+.observation svg circle[stroke="#e59f67"],.obs-pan svg circle[stroke="#e59f67"]{animation:obs-breathe 6s ease-in-out infinite}
+
+/* Full view: the plate at reading scale, pannable. */
+.obs-dialog{margin:auto;padding:0;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--paper);box-shadow:0 2px 4px rgba(0,0,0,.38),0 10px 28px rgba(0,0,0,.45);width:min(94vw,72rem);max-height:90vh}
+.obs-dialog::backdrop{background:rgba(10,16,24,.5)}
+.obs-dialog[open]{animation:obs-dialog-in .16s ease-out}
+@keyframes obs-dialog-in{from{opacity:0;transform:scale(.985)}}
+.obs-dialog-bar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem 1.25rem;border-bottom:1px solid var(--border)}
+.obs-dialog-title{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;opacity:.55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.obs-close{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.66rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--paper);opacity:.55;background:none;border:1px solid var(--border);border-radius:3px;padding:.32rem .6rem;cursor:pointer;transition:opacity .12s ease-out,border-color .12s ease-out}
+.obs-close:hover{opacity:1;border-color:var(--line-strong)}
+.obs-close:focus-visible{outline:2px solid var(--horizon);outline-offset:2px}
+.obs-pan{overflow:auto;-webkit-overflow-scrolling:touch;max-height:calc(90vh - 3.4rem);padding:1.25rem 1.25rem 1.5rem;cursor:grab}
+.obs-pan.dragging{cursor:grabbing;user-select:none}
+.obs-pan svg{display:block;height:auto}
+@media (max-width:640px){
+  .obs-dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border:0;border-radius:0}
+  .obs-pan{max-height:calc(100dvh - 3.4rem)}
+}
+@media (prefers-reduced-motion:reduce){
+  .observation svg *,.obs-pan svg *{animation:none !important}
+  .obs-dialog[open]{animation:none}
+}
 .observation figcaption{
   font-family:"IBM Plex Mono",ui-monospace,monospace;
   font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
@@ -341,4 +385,116 @@ const overviewDiagram = `<figure class="observation" aria-label="System diagram:
 </svg>
 <figcaption>Observation 01 · one box, two ways in, opt-in public surface</figcaption>
 </figure>
+`
+
+// docsJS is the full-view + pan behavior for observation figures,
+// transplanted from apex docs (farfield 4cf4dd4). No libraries.
+const docsJS = `// Full view for observation figures. Each figure gets a toggle above its
+// plate; the toggle opens the diagram in a <dialog> at reading scale
+// (1.5× the viewBox, so 11px labels render ~16px), pannable by scroll,
+// touch, or mouse drag. One dialog is shared across figures.
+(function () {
+  "use strict";
+
+  var dialog, pan, title;
+
+  function build() {
+    dialog = document.createElement("dialog");
+    dialog.className = "obs-dialog";
+
+    var bar = document.createElement("div");
+    bar.className = "obs-dialog-bar";
+    title = document.createElement("span");
+    title.className = "obs-dialog-title";
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "obs-close";
+    close.textContent = "close";
+    close.addEventListener("click", function () { dialog.close(); });
+    bar.appendChild(title);
+    bar.appendChild(close);
+
+    pan = document.createElement("div");
+    pan.className = "obs-pan";
+
+    dialog.appendChild(bar);
+    dialog.appendChild(pan);
+
+    // A press-and-release on the dialog element itself is a click on the
+    // backdrop — every real target inside is a child. Both ends of the
+    // gesture must land there with no movement between them, so a drag
+    // that strays over the backdrop can never dismiss the plate.
+    var downOnBackdrop = false, bx = 0, by = 0;
+    dialog.addEventListener("pointerdown", function (e) {
+      downOnBackdrop = e.target === dialog;
+      bx = e.clientX;
+      by = e.clientY;
+    });
+    dialog.addEventListener("pointerup", function (e) {
+      if (downOnBackdrop && e.target === dialog &&
+          Math.hypot(e.clientX - bx, e.clientY - by) < 6) {
+        dialog.close();
+      }
+      downOnBackdrop = false;
+    });
+
+    // Drag-to-pan for mouse only; touch already pans via native overflow
+    // scrolling, and fighting it doubles the movement.
+    var dragging = false, lx = 0, ly = 0;
+    pan.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      dragging = true;
+      lx = e.clientX;
+      ly = e.clientY;
+      pan.classList.add("dragging");
+      try { pan.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    pan.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      pan.scrollLeft -= e.clientX - lx;
+      pan.scrollTop -= e.clientY - ly;
+      lx = e.clientX;
+      ly = e.clientY;
+    });
+    function end() {
+      dragging = false;
+      pan.classList.remove("dragging");
+    }
+    pan.addEventListener("pointerup", end);
+    pan.addEventListener("pointercancel", end);
+
+    document.body.appendChild(dialog);
+  }
+
+  function open(fig) {
+    var svg = fig.querySelector("svg");
+    if (!svg) return;
+    if (!dialog) build();
+
+    pan.textContent = "";
+    var clone = svg.cloneNode(true);
+    var vb = svg.viewBox.baseVal;
+    var w = Math.round(vb.width * 1.5) + "px";
+    clone.style.width = w;
+    clone.style.minWidth = w;
+    clone.style.height = "auto";
+    pan.appendChild(clone);
+
+    var cap = fig.querySelector("figcaption");
+    title.textContent = cap ? cap.textContent : "observation";
+    dialog.showModal();
+    pan.scrollLeft = 0;
+    pan.scrollTop = 0;
+  }
+
+  document.querySelectorAll(".observation").forEach(function (fig) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "obs-expand";
+    btn.textContent = "full view";
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.addEventListener("click", function () { open(fig); });
+    fig.insertBefore(btn, fig.firstChild);
+  });
+})();
 `
