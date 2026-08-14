@@ -29,9 +29,10 @@ workaround.
 - **herdr sessions** — persistent terminals from
   [herdr.dev](https://herdr.dev). Sessions survive SSH drops. Attach
   from any device.
-- **Ingress stack** — docker compose at `/srv/stack`. Tailscale for
-  private access. Caddy for HTTPS and routing. Cloudflare Tunnel for
-  the public sites. No open ports on the router.
+- **Ingress stack** — Tailscale on the host for private access: the box
+  is one tailnet node, and ssh lands on it from anywhere. Caddy and
+  Cloudflare Tunnel in docker compose at `/srv/stack` for HTTPS,
+  routing, and the public sites. No open ports on the router.
 - **Snapshots** — Snapper photographs the system before and after every
   pacman transaction. A bad update is a reboot into yesterday. Btrfs
   roots only.
@@ -142,7 +143,7 @@ re-run setup, and the change is versioned. Machine-local tweaks go in
 - herdr: `~/.config/herdr/config.toml`, then `herdr server reload-config`
 - Packages: the `pacman -S` blocks at the top of `scripts/setup.sh`
 - Docs pages: edit `README.md` or `docs/*.md`, then run
-  `python3 scripts/build-os-docs.py . stack/homepage`
+  `go run ./scripts/build-os-docs . stack/homepage`
 
 ## Workflow
 

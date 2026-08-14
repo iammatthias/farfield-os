@@ -17,19 +17,31 @@ The box does not have your terminal's terminfo entry. Setup installs
 `ghostty-terminfo`. For other terminals, push the entry from the client:
 `infocmp -x | ssh box 'tic -x -'`.
 
+### ssh to the tailnet IP fails with "failed to look up local user"
+Tailscale SSH intercepted the connection before sshd could answer. On
+this box the tailnet identity is host tailscaled and plain sshd is the
+front door — Tailscale SSH must stay off. Fix from a LAN session:
+```bash
+sudo tailscale set --ssh=false
+```
+(Historical cause of the same error: a containerized tailscaled owning
+the tailnet identity with `--ssh` — the container has no host users.
+The stack no longer runs one.)
+
 ## Ingress stack
 
 ```bash
 cd /srv/stack
-docker compose ps                  # tailscale must be healthy first —
-                                   # caddy + cloudflared join its netns
-docker compose logs tailscale caddy cloudflared --tail 50
+docker compose ps                  # caddy must be up first —
+                                   # cloudflared joins its netns
+docker compose logs caddy cloudflared --tail 50
 ```
 
-- **Everything down at once**: never restart the tailscale container
-  alone — caddy/cloudflared orphan when its netns dies. Always
-  `docker compose up -d` the whole stack (`ff-stack.service` does this at
-  boot).
+- **Tunnel down after touching caddy**: never restart the caddy
+  container alone — cloudflared orphans when its netns dies. Always
+  `docker compose up -d` the whole stack (`ff-stack.service` does this
+  at boot). `docker compose exec caddy caddy reload` is safe — that is
+  a config reload, not a restart.
 - **Caddy rejects config**: `test-caddy` validates; `caddy-status` tails
   logs. Site helpers keep a `.bak` of the previous Caddyfile.
 - **Public site 502s**: check cloudflared is running and

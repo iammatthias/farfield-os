@@ -1,7 +1,7 @@
 #!/bin/bash
 # farfield os — service + Caddy-site health for the dashboard pane.
 #
-# Host services run via systemd. The container stack (tailscale + caddy +
+# Host services run via systemd. The container stack (caddy +
 # cloudflared) lives under /srv/stack and is reported
 # via `docker compose ps`.
 

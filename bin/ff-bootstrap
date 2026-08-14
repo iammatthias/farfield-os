@@ -13,15 +13,6 @@ set -uo pipefail
 STACK=/srv/stack
 COMPOSE=(docker compose -f "$STACK/docker-compose.yml")
 
-# For non-interactive reads (state checks), use `compose exec -T`.
-EXEC_TS=("${COMPOSE[@]}" exec -T tailscale)
-
-# For interactive flows, use raw `docker exec -it <container-name>`.
-# `docker compose exec` without -T is supposed to allocate a TTY, but in
-# practice (especially inside scripts) it often doesn't pass through stdin
-# correctly. Raw `docker exec -it` is more reliable.
-EXEC_TS_IT=(docker exec -it ff-tailscale)
-
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -65,7 +56,7 @@ fi
 
 # Wait for compose services to be up (poll for ~2 min before giving up).
 for i in $(seq 1 24); do
-    if "${COMPOSE[@]}" ps --status running 2>/dev/null | grep -q ff-tailscale; then
+    if "${COMPOSE[@]}" ps --status running 2>/dev/null | grep -q ff-caddy; then
         ok "Stack is up"
         break
     fi
@@ -77,35 +68,25 @@ done
 echo
 
 # ---------------------------------------------------------------------------
-# Tailscale
+# Tailscale (host tailscaled — the box's one tailnet identity; there is
+# no tailscale container. sshd and caddy's published ports are both
+# reachable on this node's IP.)
 # ---------------------------------------------------------------------------
 step "Tailscale"
 
-TS_IP=$("${EXEC_TS[@]}" tailscale ip -4 2>/dev/null | tr -d '\r')
+TS_IP=$(tailscale ip -4 2>/dev/null | head -1)
 if [ -n "$TS_IP" ]; then
-    ok "Already authenticated ($TS_IP)"
+    ok "Already on the tailnet ($TS_IP)"
 else
-    # Read TS_HOSTNAME from .env so we use the same flags the container's
-    # startup `tailscale up` was invoked with (otherwise tailscale rejects
-    # the call with "changing settings requires mentioning all non-default
-    # flags").
-    TS_HOSTNAME=$(sudo awk -F= '/^TS_HOSTNAME=/{print $2}' "$STACK/.env" 2>/dev/null \
-        | tr -d "\"' ")
-    : "${TS_HOSTNAME:=farfield}"
-
-    warn "Tailscale isn't authenticated yet."
-    info "A login URL will print below — open it on your laptop and approve the device."
-    info "This blocks until you finish in the browser."
+    warn "The host isn't on the tailnet yet."
+    info "A login URL will print below — open it and approve the device."
+    info "This is what makes \`ssh $(hostname)\` work from anywhere."
     echo
-    # Use raw `docker exec -it` (compose exec's TTY pass-through is flaky
-    # from inside scripts). Flags match what tailscale's "changing settings"
-    # error tells us to use, so we don't re-trip on it.
-    "${EXEC_TS_IT[@]}" tailscale up \
-        --accept-dns=false \
-        --hostname="$TS_HOSTNAME" \
-        --ssh
-
-    TS_IP=$("${EXEC_TS[@]}" tailscale ip -4 2>/dev/null | tr -d '\r')
+    # --accept-dns=false: a server should keep its own resolv.conf.
+    # No --ssh: plain sshd answers on the tailnet IP; Tailscale SSH
+    # would intercept it and change the auth model.
+    sudo tailscale up --accept-dns=false
+    TS_IP=$(tailscale ip -4 2>/dev/null | head -1)
     if [ -n "$TS_IP" ]; then
         ok "Authenticated. Tailnet IP: $TS_IP"
     else
@@ -182,17 +163,17 @@ fi
 # ---------------------------------------------------------------------------
 step "Where things are"
 
-TS_IP=${TS_IP:-$("${EXEC_TS[@]}" tailscale ip -4 2>/dev/null | tr -d '\r')}
-[ -n "$TS_IP" ] || TS_IP='<run tailscale up first>'
+TS_IP=${TS_IP:-$(tailscale ip -4 2>/dev/null | head -1)}
+[ -n "$TS_IP" ] || TS_IP='<run ff-bootstrap again>'
 
 cat <<EOF
   Manage the box  ssh in, run \`claude\` (Claude Code, subscription auth)
-  Dashboard       ff-dashboard (tmux) — or the kiosk on an attached display
+  Dashboard       ff-dashboard (run it inside herdr to persist) — or the kiosk
   Stack logs      sudo journalctl -fu ff-stack
                   cd $STACK && docker compose logs -f caddy
   Add a site      add-site <name> <port>           # private, tailnet
                   add-public-site <host> <port>    # public, via cloudflared
-  Tailnet IP      $TS_IP
+  Tailnet IP      $TS_IP ($(hostname)) — ssh and served sites both land here
 
 If something's off, re-run \`ff-bootstrap\` — it skips steps that are
 already done and re-prompts the ones that aren't.

@@ -50,17 +50,27 @@ session:</p>
 <p>The box does not have your terminal's terminfo entry. Setup installs
 <code>ghostty-terminfo</code>. For other terminals, push the entry from the client:
 <code>infocmp -x | ssh box 'tic -x -'</code>.</p>
+<h3>ssh to the tailnet IP fails with &quot;failed to look up local user&quot;</h3>
+<p>Tailscale SSH intercepted the connection before sshd could answer. On
+this box the tailnet identity is host tailscaled and plain sshd is the
+front door — Tailscale SSH must stay off. Fix from a LAN session:</p>
+<pre><code class="language-bash">sudo tailscale set --ssh=false
+</code></pre>
+<p>(Historical cause of the same error: a containerized tailscaled owning
+the tailnet identity with <code>--ssh</code> — the container has no host users.
+The stack no longer runs one.)</p>
 <h2>Ingress stack</h2>
 <pre><code class="language-bash">cd /srv/stack
-docker compose ps                  # tailscale must be healthy first —
-                                   # caddy + cloudflared join its netns
-docker compose logs tailscale caddy cloudflared --tail 50
+docker compose ps                  # caddy must be up first —
+                                   # cloudflared joins its netns
+docker compose logs caddy cloudflared --tail 50
 </code></pre>
 <ul>
-<li><strong>Everything down at once</strong>: never restart the tailscale container
-alone — caddy/cloudflared orphan when its netns dies. Always
-<code>docker compose up -d</code> the whole stack (<code>ff-stack.service</code> does this at
-boot).</li>
+<li><strong>Tunnel down after touching caddy</strong>: never restart the caddy
+container alone — cloudflared orphans when its netns dies. Always
+<code>docker compose up -d</code> the whole stack (<code>ff-stack.service</code> does this
+at boot). <code>docker compose exec caddy caddy reload</code> is safe — that is
+a config reload, not a restart.</li>
 <li><strong>Caddy rejects config</strong>: <code>test-caddy</code> validates; <code>caddy-status</code> tails
 logs. Site helpers keep a <code>.bak</code> of the previous Caddyfile.</li>
 <li><strong>Public site 502s</strong>: check cloudflared is running and

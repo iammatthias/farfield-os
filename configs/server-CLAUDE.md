@@ -38,16 +38,18 @@ It is a single-tenant home server intended for remote development over SSH.
   container via bind-mount (preview sites).
 
 ### Web / proxy stack
-The network ingress layer runs as a docker-compose stack at `/srv/stack`
-(not on host). Containers share the tailscale container's network
-namespace:
-- `ff-tailscale` — tailnet identity, ingress
-- `ff-caddy` — reverse proxy (`add-site <name> <port>` writes to
-  `/srv/stack/Caddyfile` and reloads via `docker compose exec caddy
-  caddy reload --config /etc/caddy/Caddyfile` — without `--config` the
-  image's workdir has no Caddyfile and the reload errors out)
+The tailnet identity is HOST tailscaled (`tailscale status` on the box)
+— ssh and caddy's published ports both land on its IP. The ingress
+layer runs as a docker-compose stack at `/srv/stack`:
+- `ff-caddy` — reverse proxy, netns owner, publishes :80/:443
+  (`add-site <name> <port>` writes to `/srv/stack/Caddyfile` and
+  reloads via `docker compose exec caddy caddy reload --config
+  /etc/caddy/Caddyfile` — without `--config` the image's workdir has no
+  Caddyfile and the reload errors out). Never restart caddy alone —
+  cloudflared shares its netns and orphans; cycle the whole stack.
 - `ff-cloudflared` — Cloudflare Tunnel connector for opt-in public
-  sites (`add-public-site`)
+  sites (`add-public-site`); reaches caddy at `localhost:8080` inside
+  caddy's netns
 
 Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
 `ff-stack` systemd unit runs `docker compose up -d --build` at boot.

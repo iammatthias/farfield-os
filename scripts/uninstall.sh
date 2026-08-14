@@ -43,15 +43,18 @@ echo
 # Stop / disable services
 # -----------------------------------------------------------------------------
 # Tear down the container stack first — this needs dockerd still running.
-# Leaves /srv/stack/data in place — that's user state (tailscale identity,
-# caddy certs). Move it aside if you want a clean wipe.
+# Leaves /srv/stack/data in place — that's user state (caddy certs).
+# Move it aside if you want a clean wipe.
 if [ -f /srv/stack/docker-compose.yml ]; then
     docker compose -f /srv/stack/docker-compose.yml down 2>/dev/null || true
 fi
 
 # docker is disabled here too (setup.sh enabled it); the package remains —
 # the epilogue below already suggests removing it manually.
-for svc in ff-stack ff-docker-prune.timer fail2ban valkey postgresql ufw docker; do
+# tailscaled: the host tailnet node. Disabling stops host ssh over the
+# tailnet; node state in /var/lib/tailscale is left alone (user identity —
+# `tailscale logout` + package removal wipe it if wanted).
+for svc in ff-stack ff-docker-prune.timer fail2ban valkey postgresql ufw docker tailscaled; do
     systemctl is-active --quiet "$svc" && systemctl stop "$svc" || true
     systemctl is-enabled --quiet "$svc" 2>/dev/null && systemctl disable "$svc" || true
 done
@@ -201,12 +204,13 @@ echo
 echo "Backups: *.ff-backup.$TS"
 echo
 echo "Packages remain installed. To remove the farfield os package set:"
-echo "  sudo pacman -Rns zsh neovim docker docker-compose \\"
+echo "  sudo pacman -Rns zsh neovim docker docker-compose tailscale \\"
 echo "    nodejs npm python uv ruby go jdk-openjdk maven gradle \\"
 echo "    eza bat fd fzf zoxide ripgrep jq yq fastfetch htop btop \\"
 echo "    iotop nethogs ncdu rsync rclone p7zip imagemagick httpie \\"
 echo "    ufw fail2ban nmap tcpdump wireshark-cli postgresql valkey \\"
 echo "    sqlite smartmontools sway foot"
 echo
-echo "Container stack data (tailscale identity, caddy certs) is preserved"
-echo "at /srv/stack/data/ — wipe manually if you want a clean slate."
+echo "Caddy state is preserved at /srv/stack/data/, and the tailnet"
+echo "identity at /var/lib/tailscale/ — wipe manually (tailscale logout;"
+echo "rm -r) if you want a clean slate."

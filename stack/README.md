@@ -3,18 +3,21 @@
 Single-host docker-compose for the network ingress surface.
 
 ```
-┌────────────── tailscale (network namespace) ──────────────┐
+┌─────────────── caddy (network namespace) ─────────────────┐
 │                                                           │
 │  caddy                     cloudflared                    │
-│  :80, :443, :8080          tunnel connector               │
+│  :80, :443 published       tunnel connector               │
+│  :8080 internal only       → localhost:8080               │
 │                                                           │
 └───────────────────────────────────────────────────────────┘
 ```
 
-The containers share the `tailscale` container's network namespace
-(`network_mode: service:tailscale`). They reach each other on `localhost`,
-and the outside world reaches them via the tailnet IP / hostname tailscale
-hands out — or, for opt-in public sites, via the Cloudflare tunnel.
+Tailscale is not in the stack — the tailnet identity is host tailscaled
+(installed by `setup.sh`, authenticated by `ff-bootstrap`). cloudflared
+shares caddy's network namespace (`network_mode: service:caddy`), so the
+tunnel's dashboard routes to `http://localhost:8080` land on caddy.
+Private clients reach caddy's published :80/:443 on the host's tailnet
+or LAN IP; public sites arrive via the Cloudflare tunnel only.
 
 ## Layout
 
@@ -32,7 +35,6 @@ hands out — or, for opt-in public sites, via the Cloudflare tunnel.
 │                            # on unconfigured installs)
 ├── preview-handles/         # one .caddy fragment per preview site
 └── data/                    # bind-mounted state (persists across `compose down`)
-    ├── tailscale/           # tailscale identity
     └── caddy/               # caddy data + config (certs)
 ```
 
@@ -41,7 +43,7 @@ hands out — or, for opt-in public sites, via the Cloudflare tunnel.
 ```
 docker compose up -d --build      # bring up, build caddy image if needed
 docker compose ps                 # what's running
-docker compose logs -f tailscale  # follow one service
+docker compose logs -f caddy      # follow one service
 docker compose pull               # newer base images
 docker compose down               # stop everything
 ```
@@ -49,25 +51,19 @@ docker compose down               # stop everything
 `ff-stack.service` (a systemd system unit, installed by `setup.sh`) does
 `up -d` on boot.
 
-Never restart the `tailscale` container on its own — it owns the network
-namespace the other services join, and recreating it alone orphans them.
-Always cycle the whole stack with `docker compose up -d`.
+Never restart the `caddy` container on its own — it owns the network
+namespace cloudflared joins, and recreating it alone orphans the
+connector. Always cycle the whole stack with `docker compose up -d`.
+(`docker compose exec caddy caddy reload` is always safe — that's a
+config reload inside the running container.)
 
 ## First-boot interactive
 
-One thing has to happen interactively, once:
+One thing has to happen interactively, once — on the HOST, not in the
+stack:
 
-**Tailscale.** Either fill `TS_AUTHKEY=` in `.env` and let it auto-auth on
-first boot, or:
-```
-docker compose exec tailscale tailscale up
-```
-
-`ff-bootstrap` walks this (plus Claude Code login on the host).
-
-Until tailscale is logged in, its healthcheck stays unhealthy and
-caddy/cloudflared deliberately wait — they'd be joining a netns with no
-tailnet. They start on their own once auth completes.
+**Tailscale.** `sudo tailscale up` (or run `ff-bootstrap`, which walks
+this plus Claude Code login). The stack itself needs no tailnet auth.
 
 ## Adding a website
 
@@ -81,13 +77,16 @@ The `add-site myapp 3000` zsh helper does this for you.
 
 ## Two listeners: private vs public
 
-Caddy listens on separate ports inside the tailscale netns:
+Caddy listens on separate ports:
 
 | Port  | Listener  | Reached by             | Helper                |
 |-------|-----------|------------------------|-----------------------|
-| 80    | private   | tailnet                | `add-site`            |
+| 80    | private   | tailnet / LAN          | `add-site`            |
 | 443   | private   | tailnet (LE wildcard)  | `add-preview-site`    |
 | 8080  | public    | cloudflared tunnel     | `add-public-site`     |
+
+:80 and :443 are published to the host; :8080 is not — only cloudflared
+can reach it, via `localhost` in the shared netns.
 
 The split is intentional — but it is configured, not enforced. Nothing
 stops cloudflared from reaching `localhost:80` or `:443`; it only doesn't

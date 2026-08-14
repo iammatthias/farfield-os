@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 farfield os is an opinionated home-server bootstrap for Arch Linux. One
 script provisions an Arch box for remote development over SSH: enhanced
 zsh, tmux, Docker, PostgreSQL + Valkey, a broad set of language runtimes
-(Node, Python via uv, Ruby, Rust, Go, Java), plus a docker-compose stack
-under /srv/stack for the network-ingress layer (Tailscale, Caddy,
-Cloudflare Tunnel). Day-to-day management is Claude Code over SSH.
+(Node, Python via uv, Ruby, Rust, Go, Java), host tailscaled as the
+box's tailnet identity, plus a docker-compose stack under /srv/stack
+for the network-ingress layer (Caddy, Cloudflare Tunnel). Day-to-day
+management is Claude Code over SSH.
 
 It also installs sway (Wayland compositor) + foot so an optional attached
 display becomes a live kiosk dashboard (auto-login on tty1 → sway → six
@@ -28,23 +29,27 @@ The network ingress layer is a docker-compose stack — atomically updatable
 via `git pull && docker compose up -d --build` and isolated from the host
 substrate.
 
-- `ff-tailscale` (image: `tailscale/tailscale`) — tailnet identity. Other
-  services share its network namespace (`network_mode: service:tailscale`)
-  so they reach the tailnet directly + can talk to one another on
-  `localhost`.
+Tailscale is NOT in the stack: host tailscaled owns the box's single
+tailnet identity (machine hostname; ssh and caddy's published ports
+land on its IP).
+
 - `ff-caddy` (image: built from `stack/caddy/Dockerfile`, adds the
-  Cloudflare DNS module) — reverse proxy. Caddyfile lives at
-  `/srv/stack/Caddyfile`, mounted into the container.
+  Cloudflare DNS module) — reverse proxy and netns owner; publishes
+  :80/:443 to the host, :8080 stays internal (tunnel-only). Caddyfile
+  lives at `/srv/stack/Caddyfile`, mounted into the container.
   `add-site`/`remove-site` shell helpers edit it and reload via
-  `docker compose exec`.
+  `docker compose exec`. Never restart caddy alone — cloudflared shares
+  its netns and orphans; cycle the whole stack.
 - `ff-cloudflared` (image: `cloudflare/cloudflared`) — Cloudflare Tunnel
-  connector for opt-in public sites (`add-public-site`).
+  connector for opt-in public sites (`add-public-site`); shares caddy's
+  netns (`network_mode: service:caddy`) so its dashboard routes to
+  `http://localhost:8080` land on caddy.
 
 State on host:
 - `/srv/stack/Caddyfile` — caddy config. The LIVE copy accumulates
   add-site blocks at runtime — never clobber it with the repo boilerplate.
-- `/srv/stack/.env` — TS_AUTHKEY, CF_API_TOKEN, CLOUDFLARED_TOKEN (chmod 600)
-- `/srv/stack/data/tailscale/` — tailnet identity
+- `/srv/stack/.env` — CF_API_TOKEN, CLOUDFLARED_TOKEN (chmod 600)
+- `/var/lib/tailscale/` — tailnet identity (host tailscaled)
 - `/srv/stack/data/caddy/{data,config}/` — caddy data + cert cache
 - `/srv/projects/` — project checkouts (served by preview sites)
 

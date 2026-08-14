@@ -71,11 +71,13 @@ systemd-tmpfiles --create --prefix /var/log/journal &>/dev/null || true
 systemctl kill --kill-whom=main -s USR1 systemd-journald &>/dev/null || true
 
 echo -e "${GREEN}Installing core packages...${NC}"
-# caddy + tailscale + cloudflared live in the /srv/stack docker compose,
-# not on the host. Docker is the only network-layer thing we install
-# directly.
+# caddy + cloudflared live in the /srv/stack docker compose, not on the
+# host. Tailscale runs on the HOST — the box is one tailnet node that
+# keeps the machine hostname; sshd and caddy's published ports are both
+# reachable on its IP from anywhere on the tailnet.
 pacman -S --noconfirm --needed \
   zsh neovim git curl wget unzip \
+  tailscale \
   docker docker-compose \
   nodejs npm \
   python uv \
@@ -460,7 +462,7 @@ fi
 # compositor that delivers touch to clients.
 
 # -----------------------------------------------------------------------------
-# Container stack (tailscale + caddy + cloudflared — see /srv/stack/README)
+# Container stack (caddy + cloudflared — see /srv/stack/README)
 # -----------------------------------------------------------------------------
 # The network-ingress layer runs as a docker-compose stack out of
 # /srv/stack. Updating the stack is `git pull && docker compose up -d
@@ -477,7 +479,7 @@ else
 fi
 chown -R "$REAL_USER:$REAL_USER" /srv/stack
 
-# .env is sensitive (TS_AUTHKEY) — start from .env.example if not present.
+# .env is sensitive (CLOUDFLARED_TOKEN) — start from .env.example if not present.
 if [ ! -f /srv/stack/.env ]; then
     cp /srv/stack/.env.example /srv/stack/.env
     chmod 600 /srv/stack/.env
@@ -488,7 +490,6 @@ fi
 # docker auto-creates them with root).
 install -d -o "$REAL_USER" -g "$REAL_USER" \
     /srv/stack/data \
-    /srv/stack/data/tailscale \
     /srv/stack/data/caddy \
     /srv/stack/data/caddy/data \
     /srv/stack/data/caddy/config
@@ -521,6 +522,11 @@ install -m 644 "$CONFIGS/ff-docker-prune.timer" /etc/systemd/system/ff-docker-pr
 systemctl daemon-reload
 systemctl enable ff-stack.service
 systemctl enable --now ff-docker-prune.timer
+
+# The box's tailnet identity. Unauthenticated until `ff-bootstrap` runs
+# `tailscale up` — enabling the daemon now just means the join survives
+# reboots once it happens.
+systemctl enable --now tailscaled 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # Per-user runtime tooling

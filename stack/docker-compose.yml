@@ -1,6 +1,12 @@
 # Cap container log growth — json-file defaults to unbounded. Applied to
 # every service below via `logging: *default-logging`. Takes effect per
 # container on its next recreate.
+#
+# Tailscale is NOT in this stack. The tailnet identity is host tailscaled
+# (installed by setup.sh, authenticated by ff-bootstrap) — it owns the
+# machine hostname, and host sshd is reachable on its IP from anywhere on
+# the tailnet. Tailnet clients reach caddy through the published ports
+# below via the same host IP.
 x-logging: &default-logging
   driver: json-file
   options:
@@ -8,57 +14,15 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  # Network ingress. Owns the tailnet identity. Other services share its
-  # network namespace so they reach the tailnet directly + can proxy to
-  # one another via localhost.
-  #
-  # WARNING: because this container OWNS the shared netns, restarting or
-  # recreating it alone orphans caddy/cloudflared — they keep a handle
-  # on the dead namespace and drop off the network. Never
-  # `docker compose restart tailscale` by itself; always cycle the whole
-  # stack with `docker compose up -d` (or `down` then `up -d`).
-  tailscale:
-    # Pinned to the version verified on this deployment. Bump
-    # deliberately: edit the tag, `docker compose pull`, `up -d`.
-    image: tailscale/tailscale:v1.96.5
-    container_name: ff-tailscale
-    logging: *default-logging
-    hostname: ${TS_HOSTNAME:-farfield}
-    environment:
-      # Set in .env (copy from .env.example) for unattended bring-up:
-      #   TS_AUTHKEY=tskey-auth-...
-      # Or leave unset and run `docker compose exec tailscale tailscale up` once.
-      TS_AUTHKEY: ${TS_AUTHKEY:-}
-      TS_HOSTNAME: ${TS_HOSTNAME:-farfield}
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---ssh}
-    volumes:
-      - ./data/tailscale:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    # `extra_hosts` MUST live on the netns owner. Sibling containers
-    # using `network_mode: service:tailscale` share /etc/hosts, so this
-    # propagates automatically. (Published ports would also have to live
-    # here — none are published: ingress is tailnet + cloudflared only.)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      # Healthy once tailscaled is up AND logged in to the tailnet
-      # (`status` exits nonzero while starting or logged out). Gates
-      # caddy/cloudflared below so they never race the netns owner. On a
-      # fresh box without TS_AUTHKEY this stays unhealthy until the
-      # one-time `docker compose exec tailscale tailscale up`.
-      test: ["CMD", "/usr/local/bin/tailscale", "status", "--peers=false"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
-    restart: unless-stopped
-
   # Reverse proxy for everything served from the box. Edits to ./Caddyfile
   # take effect with `docker compose exec caddy caddy reload`.
+  #
+  # WARNING: caddy OWNS the netns that cloudflared shares
+  # (`network_mode: service:caddy`) — restarting or recreating caddy
+  # alone orphans cloudflared on the dead namespace. Never
+  # `docker compose restart caddy` by itself; always cycle the whole
+  # stack with `docker compose up -d` (or `down` then `up -d`).
+  # (`caddy reload` inside the running container is always safe.)
   caddy:
     # Custom build — adds the caddy-dns/cloudflare module so caddy can
     # do ACME DNS-01 against Cloudflare (required for LE wildcard certs
@@ -69,10 +33,13 @@ services:
     image: ff-caddy:latest
     container_name: ff-caddy
     logging: *default-logging
-    network_mode: service:tailscale
-    depends_on:
-      tailscale:
-        condition: service_healthy
+    # Published to the host: tailnet + LAN clients hit the host's IP and
+    # land here. :8080 (public-hostname routing) is deliberately NOT
+    # published — only cloudflared may reach it (via localhost in the
+    # shared netns), so nothing off-tunnel can spoof a public hostname.
+    ports:
+      - "80:80"
+      - "443:443"
     environment:
       # Caddy substitutes {$PREVIEW_APEX} and {env.CF_API_TOKEN} in the
       # Caddyfile at config-load / cert-issuance time. Defaults mirror
@@ -101,17 +68,21 @@ services:
       # written by `add-preview-site` and imported into the wildcard
       # HTTPS block at config-load time.
       - ./preview-handles:/etc/caddy/preview-handles:ro
-    # host.docker.internal resolution comes from the tailscale service
-    # — containers sharing its netns inherit /etc/hosts.
+    # `extra_hosts` MUST live on the netns owner. cloudflared shares
+    # /etc/hosts via `network_mode: service:caddy`, so this propagates.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # Cloudflare Tunnel connector — opt-in via the "cloudflared" compose
   # profile. Token-managed: the tunnel and its public hostnames are
-  # configured in the Cloudflare Zero Trust dashboard; the connector
-  # authenticates with CLOUDFLARED_TOKEN (set in /srv/stack/.env). No
-  # cert.pem / config.yml needed. Profile-gated so token-less installs
-  # don't crash-loop a connector with nothing to auth as — enable it by
-  # ALSO setting COMPOSE_PROFILES=cloudflared in /srv/stack/.env.
+  # configured in the Cloudflare Zero Trust dashboard (each public
+  # hostname routes to http://localhost:8080 — caddy, in the shared
+  # netns); the connector authenticates with CLOUDFLARED_TOKEN (set in
+  # /srv/stack/.env). No cert.pem / config.yml needed. Profile-gated so
+  # token-less installs don't crash-loop a connector with nothing to
+  # auth as — enable it by ALSO setting COMPOSE_PROFILES=cloudflared in
+  # /srv/stack/.env.
   cloudflared:
     # Pinned — cloudflared cuts monthly YYYY.M.P releases and `latest`
     # moves under you. Bump policy: read the release notes
@@ -122,10 +93,8 @@ services:
     container_name: ff-cloudflared
     profiles: ["cloudflared"]
     logging: *default-logging
-    network_mode: service:tailscale
+    network_mode: service:caddy
     depends_on:
-      tailscale:
-        condition: service_healthy
       caddy:
         condition: service_started
     command: tunnel --no-autoupdate run

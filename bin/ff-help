@@ -88,7 +88,7 @@ Kiosk dashboard (attached display)
 AI / LLM (Claude Code on the host)
   Manage the box: ssh in, run `claude`. Auth once via ff-bootstrap
   (or `claude` → /login). Session stats: ff-claude-stats.
-  Stack lifecycle (tailscale + caddy + cloudflared):
+  Stack lifecycle (caddy + cloudflared):
     sudo systemctl status ff-stack
     cd /srv/stack && docker compose ps
     cd /srv/stack && docker compose logs -f caddy
