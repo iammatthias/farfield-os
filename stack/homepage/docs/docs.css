@@ -92,8 +92,10 @@ aside{position:sticky;top:1.5rem;align-self:start}
 .doc blockquote{border-left:2px solid rgba(229,159,103,.55);padding-left:1rem;margin:1rem 0;opacity:.85}
 .doc hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
 
-.observation{margin:2.2rem 0 0}
-.observation svg{display:block;width:100%;height:auto}
+.observation{margin:2.2rem 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* The figure scrolls sideways at legible size instead of shrinking —
+   42rem keeps the 11px mono labels near full size for the 700px viewBox. */
+.observation svg{display:block;width:100%;height:auto;min-width:42rem}
 .observation figcaption{
   font-family:"IBM Plex Mono",ui-monospace,monospace;
   font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
