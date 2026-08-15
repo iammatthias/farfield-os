@@ -1,10 +1,10 @@
 #!/bin/bash
 # ff-display — manual control over the kiosk display power.
 #
-#   ff-display on       power on and PIN on (presence auto-sleep disabled)
-#   ff-display auto     resume presence-based auto sleep/wake
-#   ff-display off      power off now (one-shot; presence/tap still wake it)
-#   ff-display status   current state, mode, and the daemon's last decision
+#   ff-display on       power the panel on
+#   ff-display off      power the panel off (a tap on the dark panel wakes it)
+#   ff-display status   current power state
+#   ff-display log      wake/sleep transition history (journaled)
 #
 # Works from any shell (incl. plain ssh) — borrows the Wayland session env
 # from a running foot tile so swaymsg can reach the compositor.
@@ -28,50 +28,37 @@ power() { swaymsg "output * power $1" >/dev/null; }
 
 case "${1:-status}" in
     on)
-        echo on > "$DIR/mode"
         # Only journal + report success if swaymsg actually worked — the
         # transition log must record transitions that happened, not wishes.
         if power on; then
             echo on > "$DIR/state"
-            logger -t ff-display "display on — pinned manually (ff-display on)"
-            echo "display pinned ON (auto-sleep disabled — 'ff-display auto' to resume)"
+            logger -t ff-display "display on — manual (ff-display on)"
+            echo "display on"
         else
-            echo "ff-display: swaymsg failed — kiosk not running? (mode pinned on; display state unchanged)" >&2
+            echo "ff-display: swaymsg failed — kiosk not running?" >&2
             exit 1
         fi
         ;;
-    auto)
-        echo auto > "$DIR/mode"
-        rm -f "$DIR/override"
-        logger -t ff-display "auto mode resumed (ff-display auto)"
-        echo "presence auto mode resumed"
-        ;;
     off)
-        echo auto > "$DIR/mode"
-        rm -f "$DIR/override"
         if power off; then
             echo off > "$DIR/state"
             logger -t ff-display "display off — manual (ff-display off)"
-            echo "display off (presence or a tap will wake it)"
+            echo "display off (a tap will wake it)"
         else
-            echo "ff-display: swaymsg failed — kiosk not running? (display state unchanged)" >&2
+            echo "ff-display: swaymsg failed — kiosk not running?" >&2
             exit 1
         fi
         ;;
     status)
-        echo "mode:   $(cat "$DIR/mode" 2>/dev/null || echo auto)"
         echo "state:  $(cat "$DIR/state" 2>/dev/null || echo unknown)"
-        echo "daemon: $(cat "$DIR/status" 2>/dev/null || echo '(not running)')"
         swaymsg -t get_outputs 2>/dev/null | jq -r '.[] | "output: \(.name) power=\(.power)"' || true
         ;;
     log)
-        # Wake/sleep transition history (every state change is journaled
-        # with its reason by the daemon / listener / tap / manual control).
         sudo -n journalctl -t ff-display --no-pager -n "${2:-40}" 2>/dev/null \
             || journalctl -t ff-display --no-pager -n "${2:-40}"
         ;;
     *)
-        echo "usage: ff-display [on|auto|off|status|log [n]]" >&2
+        echo "usage: ff-display [on|off|status|log [n]]" >&2
         exit 2
         ;;
 esac

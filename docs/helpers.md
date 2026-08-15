@@ -122,7 +122,7 @@ exec foot --fullscreen -e btop
 
 `ff-kiosk-restart` re-applies the tile layout; `ff-kiosk-shot` grabs a
 screenshot of whatever the panel is showing (via grim); `ff-display
-on|auto|off|status` drives display power.
+on|off|status` drives display power (a tap wakes a dark panel).
 
 In-sway keybindings (only matter if you walk up to the box):
 

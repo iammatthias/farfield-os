@@ -85,9 +85,8 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
   `chattr +C` (no CoW) — important for write-heavy DB/container files.
 
 ### Network / security
-- `ufw` (deny incoming except the detected sshd port(s), 80/443,
-  8666/udp — kiosk wake push from the CV box — and 172.16.0.0/12,
-  so docker containers can reach host-native services)
+- `ufw` (deny incoming except the detected sshd port(s), 80/443, and
+  172.16.0.0/12, so docker containers can reach host-native services)
 - `fail2ban` (sshd jail, 3 retries, 1h ban)
 - `nmap`, `tcpdump`, `wireshark-cli`
 

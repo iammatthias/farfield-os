@@ -24,13 +24,10 @@ Core
   ff-kiosk-restart          Gracefully restart the kiosk compositor
                               (swaymsg exit; getty autologin respawns it)
   ff-kiosk-shot [out.png]   Screenshot the kiosk display via grim
-  ff-display [on|auto|off|status|log [n]]
-                              Kiosk display power. Presence auto-sleep
-                              (ff-kiosk-presence polls the CV box) is
-                              fail-open: API down = display on, tap
-                              always wakes. `on` pins it; `auto` resumes;
-                              `log` shows the journaled wake/sleep
-                              transition history.
+  ff-display [on|off|status|log [n]]
+                              Kiosk display power, manual. A tap on the
+                              dark panel wakes it; `log` shows the
+                              journaled on/off transition history.
   ff-services-status        Caddy sites + service health (one-shot)
   ff-claude-stats           Claude Code session + token stats (one-shot)
   ff-project-init <path> [desc]

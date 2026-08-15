@@ -58,10 +58,9 @@ ff-kiosk-restart         # respawn the six tiles
 ff-display status        # display power state
 ```
 
-- **Blank display**: `ff-display on` forces power on; presence daemon and
-  wake listener both fail-open, so a blank screen usually means sway
-  isn't running — check tty1 auto-login (`systemctl status getty@tty1`)
-  and `~/.zprofile`'s DRM guard.
+- **Blank display**: `ff-display on` forces power on. Still blank means
+  sway isn't running — check tty1 auto-login
+  (`systemctl status getty@tty1`) and `~/.zprofile`'s DRM guard.
 - **Tiles missing after an update**: `pkill -x ff-board` — the tiles
   respawn; or `ff-kiosk-restart`.
 

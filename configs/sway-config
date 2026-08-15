@@ -30,16 +30,6 @@ seat * hide_cursor 1500
 for_window [app_id="ff-.*"] border pixel 2
 exec ff-kiosk-tiles
 
-### presence-based display power (burn-in guard) — the poll daemon is the
-### sleep authority + fallback wake; the UDP listener is the instant wake
-### path (CV box pushes on person enter/exit). Both fail-open (any failure
-### = display on), tap always wakes. Manual: ff-display on|auto|off|status.
-### NB: quoted — unquoted `;` would be parsed as a sway command separator.
-### Wrappers die with their session ([ -S $SWAYSOCK ]) so restarts don't
-### accumulate orphaned respawn loops.
-exec 'while [ -S "$SWAYSOCK" ]; do ff-kiosk-presence; sleep 5; done'
-exec 'while [ -S "$SWAYSOCK" ]; do ff-kiosk-wake-listener; sleep 5; done'
-
 ### walk-up keybindings (only matter with a keyboard plugged in)
 bindsym Mod4+f fullscreen toggle
 bindsym Mod4+Shift+r reload

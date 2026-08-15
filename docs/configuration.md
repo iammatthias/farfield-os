@@ -41,7 +41,7 @@ The prompt is hand-rolled zsh (`configs/zsh-prompt.zsh` →
 - `board/src/main.rs` — the `ff-board` TUI itself; the palette constants
   are near the top of the Rendering section.
 
-`ff-display on|auto|off|status` controls display power;
+`ff-display on|off|status` controls display power;
 `ff-kiosk-restart` respawns the tiles after a config change.
 
 ## Packages

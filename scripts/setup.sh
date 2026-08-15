@@ -305,9 +305,6 @@ for _port in $SSH_PORTS; do
 done
 ufw allow 80/tcp || true
 ufw allow 443/tcp || true
-# Kiosk wake push — LAN UDP nudge from the CV box (ff-kiosk-wake-listener).
-# Worst a spoofed datagram can do is turn the display on.
-ufw allow 8666/udp || true
 # Containers must reach host-native services (the caddy container proxies
 # add-site/pm2 apps via host.docker.internal). That traffic arrives on a
 # docker bridge and traverses INPUT — Docker only manages FORWARD — so
@@ -583,8 +580,6 @@ install -m 755 "$BIN/ff-metrics-board"    /usr/local/bin/ff-metrics-board
 install -m 755 "$BIN/ff-kiosk-tiles"      /usr/local/bin/ff-kiosk-tiles
 install -m 755 "$BIN/ff-kiosk-restart"    /usr/local/bin/ff-kiosk-restart
 install -m 755 "$BIN/ff-kiosk-shot"       /usr/local/bin/ff-kiosk-shot
-install -m 755 "$BIN/ff-kiosk-presence"   /usr/local/bin/ff-kiosk-presence
-install -m 755 "$BIN/ff-kiosk-wake-listener" /usr/local/bin/ff-kiosk-wake-listener
 install -m 755 "$BIN/ff-display"          /usr/local/bin/ff-display
 install -m 755 "$BIN/ff-claude-stats"     /usr/local/bin/ff-claude-stats
 install -m 755 "$BIN/ff-project-init"     /usr/local/bin/ff-project-init
