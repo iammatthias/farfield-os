@@ -95,6 +95,45 @@ if [ -f /etc/sudoers.d/"ff-${USER}-nopasswd" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+section "dependencies"
+# ---------------------------------------------------------------------------
+# What the helpers CALL, checked against what the box PROVIDES. This is
+# the inverse of auditing the package list for unused entries: a package
+# nobody uses is cosmetic, but a command nobody installs is a helper that
+# works on the box it was written on and dies on a fresh provision.
+#
+# Deliberately tests for the BINARY, not the package name — swaymsg
+# ships in sway, smartctl in smartmontools, logger in util-linux. Asking
+# "is the package listed" gets all three of those wrong.
+missing=()
+for c in jq lsof docker git curl rsync systemctl logger systemd-run visudo iptables; do
+    command -v "$c" >/dev/null 2>&1 || missing+=("$c")
+done
+if [ ${#missing[@]} -eq 0 ]; then
+    ok "required commands present"
+else
+    err "missing required command(s): ${missing[*]}"
+    note "helpers that call these will fail; check the pac groups in setup.sh"
+fi
+
+# Optional: a feature degrades without these, nothing breaks.
+opt_missing=()
+for c in checkupdates arch-audit smartctl snapper tailscale herdr btop fastfetch; do
+    command -v "$c" >/dev/null 2>&1 || opt_missing+=("$c")
+done
+if [ ${#opt_missing[@]} -gt 0 ]; then
+    warn "optional command(s) absent: ${opt_missing[*]}"
+    note "the board hides what it can't sample rather than showing a false zero"
+fi
+
+# Kiosk-only: pointless to flag on a headless box.
+if [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x sway >/dev/null 2>&1; then
+    for c in swaymsg foot grim; do
+        command -v "$c" >/dev/null 2>&1 || err "kiosk is running but '$c' is missing"
+    done
+fi
+
+# ---------------------------------------------------------------------------
 section "tailnet"
 # ---------------------------------------------------------------------------
 # The identity lives on the host. A container claiming it means an old
