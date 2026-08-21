@@ -145,7 +145,18 @@ section "stale daemons"
 # DELETED file is running a replaced binary or library. Reported, not
 # fixed — restarting dockerd cycles every container, so when to do it is
 # a decision, not a chore.
-if command -v lsof >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+if ! command -v lsof >/dev/null 2>&1; then
+    warn "cannot check for stale daemons: lsof not installed"
+elif ! sudo -n true 2>/dev/null; then
+    warn "cannot check for stale daemons: needs passwordless sudo"
+# Prove lsof can actually see the system before trusting an empty result.
+# PID 1 always holds open files, so no rows here means lsof is broken or
+# blocked — and "found no stale daemons" would then be a measurement
+# failure wearing the same face as a clean bill of health.
+elif [ "$(sudo -n lsof -n -p 1 2>/dev/null | wc -l)" -lt 2 ]; then
+    err "stale-daemon check is BLIND: lsof returned nothing for PID 1"
+    note "treat 'no stale daemons' as unknown until this is fixed"
+else
     stale_units=$(sudo -n lsof -n +c0 -d DEL 2>/dev/null \
         | awk 'NR>1 {print $2}' | sort -u \
         | while read -r pid; do
@@ -263,7 +274,13 @@ section "installed configs vs repo"
 if [ -n "$REPO" ]; then
     check_file() {
         local src=$1 dst=$2
-        [ -f "$src" ] || return 0
+        # A missing REPO source is a broken check, not a passing one —
+        # silently returning 0 here would report "no drift" for a file
+        # nobody compared.
+        if [ ! -f "$src" ]; then
+            warn "cannot compare $dst: ${src#"$REPO"/} missing from the repo"
+            return 0
+        fi
         if [ ! -e "$dst" ]; then
             warn "missing: $dst"
         elif ! cmp -s "$src" "$dst"; then
@@ -283,7 +300,10 @@ if [ -n "$REPO" ]; then
 
     # Helpers: compare each repo helper against what's installed.
     drifted=0
+    compared=0
     for h in "$REPO"/bin/ff-*; do
+        [ -f "$h" ] || continue
+        compared=$((compared + 1))
         n=$(basename "$h")
         if [ ! -x "/usr/local/bin/$n" ]; then
             warn "helper not installed: $n"
@@ -291,10 +311,16 @@ if [ -n "$REPO" ]; then
             drifted=$((drifted + 1))
         fi
     done
-    if [ "$drifted" -gt 0 ]; then
-        warn "$drifted helper(s) differ from the repo — re-run setup.sh to reinstall"
+    # Assert the measurement before trusting the verdict. An unmatched
+    # glob compares nothing, and "0 drifted" would then be a clean report
+    # from a check that never ran.
+    if [ "$compared" -lt 10 ]; then
+        err "helper check compared only $compared file(s) — expected the full bin/ set"
+        note "verdict below is not trustworthy; is \$REPO pointing at a real checkout?"
+    elif [ "$drifted" -gt 0 ]; then
+        warn "$drifted of $compared helper(s) differ from the repo — re-run setup.sh to reinstall"
     else
-        ok "helpers match the repo"
+        ok "helpers match the repo ($compared compared)"
     fi
 fi
 
@@ -303,14 +329,23 @@ section "migrations"
 # ---------------------------------------------------------------------------
 if [ -n "$REPO" ] && [ -d "$REPO/migrations" ]; then
     pending=0
+    seen=0
     for m in "$REPO"/migrations/*.sh; do
         [ -e "$m" ] || continue
         n=$(basename "$m")
         [ "$n" = "_template.sh" ] && continue
+        seen=$((seen + 1))
         [ -f "/var/lib/farfield/migrations/$n" ] || { warn "pending migration: $n"; pending=$((pending + 1)); }
     done
-    [ "$pending" -eq 0 ] && ok "all migrations applied"
-    [ "$pending" -gt 0 ] && note "fix: ff-migrate"
+    # Same assertion: an empty migrations/ would otherwise report
+    # "all applied" while having checked nothing at all.
+    if [ "$seen" -eq 0 ]; then
+        err "no migrations found in $REPO/migrations — check ran against nothing"
+    elif [ "$pending" -eq 0 ]; then
+        ok "all migrations applied ($seen checked)"
+    else
+        note "fix: ff-migrate"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
