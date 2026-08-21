@@ -134,6 +134,35 @@ if [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x sway >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
+section "stale daemons"
+# ---------------------------------------------------------------------------
+# pacman replaces binaries on disk; it does NOT restart the services using
+# them. So after any upgrade a daemon can keep running code that no longer
+# exists on disk, indefinitely — `pacman -Q` reports the new version while
+# the process serves the old one, and nothing anywhere says so.
+#
+# Detected the way needrestart does it: a running process still mapping a
+# DELETED file is running a replaced binary or library. Reported, not
+# fixed — restarting dockerd cycles every container, so when to do it is
+# a decision, not a chore.
+if command -v lsof >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    stale_units=$(sudo -n lsof -n +c0 -d DEL 2>/dev/null \
+        | awk 'NR>1 {print $2}' | sort -u \
+        | while read -r pid; do
+            [ -r "/proc/$pid/cgroup" ] || continue
+            sed -n 's|.*/system\.slice/\([^/]*\.service\).*|\1|p;s|.*/system\.slice/.*/\([^/]*\.service\)$|\1|p' \
+                "/proc/$pid/cgroup" 2>/dev/null | head -1
+          done | sort -u | grep -v '^$')
+    if [ -z "$stale_units" ]; then
+        ok "no service is running a replaced binary"
+    else
+        warn "running replaced binaries (upgraded on disk, not restarted):"
+        for u in $stale_units; do note "$u"; done
+        note "a reboot applies them all at once; restarting docker alone cycles every container"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 section "tailnet"
 # ---------------------------------------------------------------------------
 # The identity lives on the host. A container claiming it means an old
