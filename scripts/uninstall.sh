@@ -25,6 +25,21 @@ fi
 REAL_HOME="/home/$REAL_USER"
 TS=$(date +%Y%m%d_%H%M%S)
 
+# --deep also reverts the per-user language tooling setup.sh installed
+# (npm globals, bun, rustup, uv tools, gem bundler). Off by default: those
+# are shared with whatever else the user builds on this box, and removing
+# them is not part of "revert the farfield configuration".
+DEEP=0
+case "${1:-}" in
+    --deep) DEEP=1 ;;
+    --help | -h)
+        echo "usage: sudo ./uninstall.sh [--deep]"
+        echo "  reverts farfield os configuration, keeping timestamped backups."
+        echo "  --deep  also removes per-user tooling (npm globals, bun, rustup, uv tools)"
+        exit 0
+        ;;
+esac
+
 # Restore a file from its setup-time .ff-orig snapshot. The current state
 # is moved aside as .ff-backup.<ts> so the user can audit the diff.
 restore_orig() {
@@ -54,16 +69,32 @@ fi
 # tailscaled: the host tailnet node. Disabling stops host ssh over the
 # tailnet; node state in /var/lib/tailscale is left alone (user identity —
 # `tailscale logout` + package removal wipe it if wanted).
-for svc in ff-stack ff-docker-prune.timer fail2ban valkey postgresql ufw docker tailscaled; do
+for svc in ff-stack ff-docker-prune.timer ff-firewall fail2ban valkey postgresql ufw docker tailscaled; do
     systemctl is-active --quiet "$svc" && systemctl stop "$svc" || true
     systemctl is-enabled --quiet "$svc" 2>/dev/null && systemctl disable "$svc" || true
 done
 
 rm -f /etc/systemd/system/ff-stack.service
 rm -f /etc/systemd/system/ff-docker-prune.service /etc/systemd/system/ff-docker-prune.timer
+rm -f /etc/systemd/system/ff-firewall.service
 rm -f /etc/tmpfiles.d/farfield.conf
 rm -f /etc/udev/rules.d/99-farfield-rapl.rules
 rm -f /etc/systemd/journald.conf.d/farfield.conf
+
+# Re-read the rule/config files we just deleted — without these the
+# removed udev rules and journald limits stay live until the next boot,
+# so an uninstall that "succeeded" hasn't actually reverted anything yet.
+udevadm control --reload-rules 2>/dev/null || true
+systemctl restart systemd-journald 2>/dev/null || true
+
+# Drop the DOCKER-USER rules ff-firewall installed; without this they
+# outlive the uninstall until docker is restarted.
+if command -v iptables >/dev/null 2>&1; then
+    while read -r n; do
+        iptables -D DOCKER-USER "$n" 2>/dev/null || true
+    done < <(iptables -L DOCKER-USER -n --line-numbers 2>/dev/null \
+             | awk '/ff-managed/ {print $1}' | sort -rn)
+fi
 
 # wait-online drop-in (setup.sh's --any override)
 if [ -d /etc/systemd/system/systemd-networkd-wait-online.service.d ]; then
@@ -125,6 +156,9 @@ systemctl reload sshd 2>/dev/null || true
 
 restore_orig /etc/locale.gen
 restore_orig /etc/locale.conf
+# Regenerate against the restored locale.gen — otherwise locale-archive
+# keeps serving the locales setup.sh added, which is not "reverted".
+locale-gen &>/dev/null || true
 
 # Remove user from the docker group (added by setup.sh).
 if getent group docker >/dev/null 2>&1 && id -nG "$REAL_USER" 2>/dev/null | grep -qw docker; then
@@ -177,6 +211,27 @@ sudo -u "$REAL_USER" rm -rf "$REAL_HOME/.local/share/zinit" "$REAL_HOME/.oh-my-z
 # that's user data).
 rm -f "$REAL_HOME/.local/bin/claude"
 
+# The .gitconfig stub setup.sh writes, but only if it's still the stub —
+# a real identity means the user edited it, and it's theirs now.
+if [ -f "$REAL_HOME/.gitconfig" ] && \
+   head -n1 "$REAL_HOME/.gitconfig" | grep -q "^# Edit user.name"; then
+    backup_and_remove "$REAL_HOME/.gitconfig"
+fi
+
+# Per-user language tooling (--deep only).
+if [ "$DEEP" = 1 ]; then
+    echo -e "${YELLOW}--deep: removing per-user language tooling...${NC}"
+    sudo -u "$REAL_USER" bash <<'DEEPEOF' || true
+set -uo pipefail
+# rustup owns its whole toolchain dir; -y so it doesn't prompt.
+command -v rustup >/dev/null 2>&1 && rustup self uninstall -y
+# uv-installed CLI tools (ruff/pytest/black) live under ~/.local/share/uv.
+command -v uv >/dev/null 2>&1 && uv tool uninstall --all
+rm -rf "$HOME/.bun" "$HOME/.npm-global" "$HOME/go/bin/dlv"
+DEEPEOF
+    echo "Removed rustup, uv tools, bun, npm globals."
+fi
+
 # herdr — stop the background server, then remove the user-level install.
 sudo -u "$REAL_USER" "$REAL_HOME/.local/bin/herdr" server stop 2>/dev/null || true
 rm -f "$REAL_HOME/.local/bin/herdr"
@@ -192,7 +247,8 @@ rm -f /usr/local/bin/ff-info /usr/local/bin/ff-update /usr/local/bin/ff-help \
       /usr/local/bin/ff-bootstrap \
       /usr/local/bin/ff-deploy /usr/local/bin/ff-board \
       /usr/local/bin/ff-kiosk-presence /usr/local/bin/ff-display \
-      /usr/local/bin/ff-kiosk-wake-listener /usr/local/bin/ff-migrate
+      /usr/local/bin/ff-kiosk-wake-listener /usr/local/bin/ff-migrate \
+      /usr/local/bin/ff-doctor /usr/local/bin/ff-firewall
 
 # Migration markers (and the legacy gnar-deploy compat symlink, if present)
 rm -rf /var/lib/farfield
@@ -206,11 +262,21 @@ echo
 echo "Packages remain installed. To remove the farfield os package set:"
 echo "  sudo pacman -Rns zsh neovim docker docker-compose tailscale \\"
 echo "    nodejs npm python uv ruby go jdk-openjdk maven gradle \\"
-echo "    eza bat fd fzf zoxide ripgrep jq yq fastfetch htop btop \\"
-echo "    iotop nethogs ncdu rsync rclone p7zip imagemagick httpie \\"
-echo "    ufw fail2ban nmap tcpdump wireshark-cli postgresql valkey \\"
-echo "    sqlite smartmontools sway foot"
+echo "    ghostty-terminfo eza bat fd fzf zoxide ripgrep jq yq \\"
+echo "    fastfetch htop btop iotop nethogs lsof ncdu \\"
+echo "    tree bc rsync rclone 7zip imagemagick httpie \\"
+echo "    mosh speedtest-cli ufw fail2ban nmap tcpdump wireshark-cli \\"
+echo "    postgresql valkey sqlite smartmontools pacman-contrib arch-audit \\"
+echo "    sway foot grim ttf-ibm-plex ttf-jetbrains-mono-nerd \\"
+echo "    noto-fonts noto-fonts-emoji"
+echo
+echo "(Mirrors the pac groups in setup.sh. Review before running — some of"
+echo " these are ordinary tools you may want regardless of farfield os.)"
 echo
 echo "Caddy state is preserved at /srv/stack/data/, and the tailnet"
 echo "identity at /var/lib/tailscale/ — wipe manually (tailscale logout;"
 echo "rm -r) if you want a clean slate."
+echo
+echo "NOTE: /srv/stack/.env still holds your Cloudflare tokens. It is kept"
+echo "so a reinstall doesn't need them re-entered — shred it yourself if"
+echo "this box is being handed on:  sudo shred -u /srv/stack/.env"

@@ -182,7 +182,11 @@ const FS_MIN_COLS: u16 = 90;
 /// compositor's IPC. A tap focuses the tile first, so this acts on the
 /// tapped one.
 fn wm_toggle_fullscreen() {
-    let _ = Command::new("swaymsg").args(["fullscreen", "toggle"]).status();
+    // Fire-and-forget: this runs on the input thread, and waiting on the
+    // compositor's reply would stall the next tap behind it.
+    let mut cmd = Command::new("swaymsg");
+    cmd.args(["fullscreen", "toggle"]);
+    spawn_reaped(cmd);
 }
 
 /// If the display was powered off (ff-display off), a tap should ONLY
@@ -317,11 +321,12 @@ struct App {
     containers: BTreeMap<String, Series>,
     containers_total: usize,
     containers_running: usize, // cheap list-count (no per-container stats)
+    docker_ok: bool,           // dockerd answered — 0/0 means zero, not "down"
     services: Vec<(String, String)>,
     sites: Vec<Site>,
     procs_cpu: Vec<String>,
     procs_mem: Vec<String>,
-    disk_pct: u8,
+    disk_pct: Option<u8>, // None = df failed; never render that as 0%
     disk_detail: String,
     images: usize,
     prune_next: String,
@@ -526,8 +531,17 @@ fn disk_io_bytes() -> Option<(u64, u64)> {
 }
 
 fn cpu_temp() -> Option<f64> {
-    let mut best: Option<f64> = None;
+    // Prefer the CPU's own driver. Taking the hottest sensor in
+    // /sys/class/hwmon indiscriminately reports whatever chip runs
+    // warmest — often the NVMe drive — under a "CPU" label.
+    const CPU_DRIVERS: [&str; 4] = ["coretemp", "k10temp", "zenpower", "cpu_thermal"];
+    let mut cpu_best: Option<f64> = None;
+    let mut any_best: Option<f64> = None;
+
     for hw in fs::read_dir("/sys/class/hwmon").ok()?.flatten() {
+        let is_cpu = fs::read_to_string(hw.path().join("name"))
+            .map(|n| CPU_DRIVERS.contains(&n.trim()))
+            .unwrap_or(false);
         if let Ok(entries) = fs::read_dir(hw.path()) {
             for e in entries.flatten() {
                 let n = e.file_name();
@@ -539,13 +553,18 @@ fn cpu_temp() -> Option<f64> {
                         .map(|v| v / 1000.0)
                         .filter(|v| (1.0..150.0).contains(v))
                     {
-                        best = Some(best.map_or(c, |b: f64| b.max(c)));
+                        any_best = Some(any_best.map_or(c, |b: f64| b.max(c)));
+                        if is_cpu {
+                            cpu_best = Some(cpu_best.map_or(c, |b: f64| b.max(c)));
+                        }
                     }
                 }
             }
         }
     }
-    best
+    // Fall back to the old behavior on boards with no recognized CPU
+    // driver — a number from the wrong chip still beats no number.
+    cpu_best.or(any_best)
 }
 
 fn sample_host(h: &mut Host) {
@@ -856,7 +875,7 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
             sites = caddy_sites();
             probe_sites(&mut sites);
         }
-        let (disk_pct, disk_detail) = if shows_disk { disk_usage() } else { (0, String::new()) };
+        let (disk_pct, disk_detail) = if shows_disk { disk_usage() } else { (None, String::new()) };
         let procs_cpu = if shows_procs_cpu { top_procs("-pcpu", 14) } else { Vec::new() };
         let procs_mem = if shows_procs_mem { top_procs("-pmem", 14) } else { Vec::new() };
         let prune_next = if shows_ops { prune_timer_next() } else { String::new() };
@@ -868,25 +887,23 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
         } else {
             0
         };
+        // `None` = dockerd didn't answer. Kept distinct from Some(0) so
+        // the OPS tile can't paint a healthy green "0/0 running" at the
+        // exact moment the daemon is down.
         let containers_total = if shows_ops {
-            docker_get("/containers/json?all=1")
-                .ok()
-                .and_then(|v| v.as_array().map(|a| a.len()))
-                .unwrap_or(0)
+            docker_get("/containers/json?all=1").ok().and_then(|v| v.as_array().map(|a| a.len()))
         } else {
-            0
+            None
         };
         // Running count via the cheap list endpoint — the OPS tile shows
         // only this number, so it doesn't need the per-container stats
         // loop (which costs dockerd a cgroup sweep per container per 2s).
         let containers_running = if shows_ops {
-            docker_get("/containers/json")
-                .ok()
-                .and_then(|v| v.as_array().map(|a| a.len()))
-                .unwrap_or(0)
+            docker_get("/containers/json").ok().and_then(|v| v.as_array().map(|a| a.len()))
         } else {
-            0
+            None
         };
+        let docker_ok = !shows_ops || containers_total.is_some();
 
         let traffic = if shows_sites {
             sample_traffic(&mut log_offset, &mut traffic_window)
@@ -899,7 +916,11 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
 
         // Slow-moving / heavier samples — hourly. checkupdates does a
         // network sync, smartctl wakes the drive, pacman.log is big.
-        let hourly = if tick % 120 == 0 {
+        //
+        // Deliberately offset to tick 1, not 0: at boot the panel should
+        // paint everything fast within one cycle rather than hold a blank
+        // tile behind a network sync. The hourly cadence is unchanged.
+        let hourly = if tick % 120 == 1 {
             Some((
                 if shows_updates { pending_updates() } else { None },
                 if shows_updates { security_updates() } else { None },
@@ -929,8 +950,9 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
             a.disk_pct = disk_pct;
             a.disk_detail = disk_detail;
             a.images = images;
-            a.containers_total = containers_total;
-            a.containers_running = containers_running;
+            a.containers_total = containers_total.unwrap_or(0);
+            a.containers_running = containers_running.unwrap_or(0);
+            a.docker_ok = docker_ok;
             a.prune_next = prune_next;
             a.traffic = traffic;
             a.failed_units = alerts.failed_units;
@@ -985,6 +1007,10 @@ fn status_loop(app: Arc<Mutex<App>>, mode: Mode) {
 }
 
 /// Wall-clock for the header — cheap thread, minute resolution.
+///
+/// Sleeps to the next minute boundary rather than polling every 10s:
+/// same one `date` fork doing six times less work, and the displayed
+/// minute now turns over when the minute actually does.
 fn clock_loop(app: Arc<Mutex<App>>) {
     loop {
         let out = Command::new("date")
@@ -994,16 +1020,31 @@ fn clock_loop(app: Arc<Mutex<App>>) {
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .unwrap_or_default();
         lock_app(&app).clock = out;
-        thread::sleep(Duration::from_secs(10));
+
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() % 60)
+            .unwrap_or(0);
+        // +1s of slack so we land just past the rollover, never just shy
+        // of it (which would show the old minute for a full extra cycle).
+        thread::sleep(Duration::from_secs(61 - secs));
     }
 }
 
-/// Live-probe each Caddy vhost through the tailscale container's bridge
-/// IP (caddy shares that netns, so its listeners are reachable there
-/// from the host). private → :80, public → :8080, previews are
-/// TLS-only so they get a TCP-connect check on :443.
+/// Live-probe each Caddy vhost, each through the path it is actually
+/// served over. caddy publishes :80/:443 on the host, so private and
+/// preview sites are probed via loopback — that exercises the publish
+/// hop a tailnet client uses. :8080 (public-hostname routing) is
+/// deliberately NOT published, so those are probed via caddy's bridge
+/// IP, the only route in from the host.
+///
+/// Probes run concurrently: they're 3s-timeout network calls, and one
+/// dead site must not push the rest past the caller's 30s cycle.
+///
+/// Degrades in halves — if the container IP lookup fails, private and
+/// preview sites are still probed (only the public ones go unknown).
 fn probe_sites(sites: &mut [Site]) {
-    let ip = match docker_get("/containers/ff-tailscale/json").ok().and_then(|v| {
+    let caddy_ip = docker_get("/containers/ff-caddy/json").ok().and_then(|v| {
         let ns = &v["NetworkSettings"];
         ns["IPAddress"]
             .as_str()
@@ -1017,23 +1058,35 @@ fn probe_sites(sites: &mut [Site]) {
                     .filter(|s| !s.is_empty())
                     .map(String::from)
             })
-    }) {
-        Some(ip) => ip,
-        None => return,
-    };
-    for site in sites.iter_mut() {
-        let res = match site.kind.as_str() {
-            "private" => http_probe(&ip, 80, &site.host),
-            "public" => http_probe(&ip, 8080, &site.host),
-            _ => tcp_probe(&ip, 443).map(|ms| (0u16, ms)),
-        };
-        match res {
-            Some((code, ms)) => {
+    });
+
+    let handles: Vec<_> = sites
+        .iter()
+        .map(|site| {
+            let host = site.host.clone();
+            let kind = site.kind.clone();
+            let pub_ip = caddy_ip.clone();
+            thread::spawn(move || match kind.as_str() {
+                "private" => Some(http_probe("127.0.0.1", 80, &host)),
+                "public" => pub_ip.map(|ip| http_probe(&ip, 8080, &host)),
+                _ => Some(tcp_probe("127.0.0.1", 443).map(|ms| (0u16, ms))),
+            })
+        })
+        .collect();
+
+    for (site, h) in sites.iter_mut().zip(handles) {
+        // A panicked probe thread reads as "couldn't tell", never as ok.
+        match h.join().unwrap_or(None) {
+            // Probed, got an answer.
+            Some(Some((code, ms))) => {
                 site.code = code;
                 site.ms = ms;
                 site.ok = Some(code == 0 || (200..400).contains(&code));
             }
-            None => site.ok = Some(false),
+            // Probed, no answer — the site is down.
+            Some(None) => site.ok = Some(false),
+            // Not probed (no route to :8080) — leave it unknown.
+            None => site.ok = None,
         }
     }
 }
@@ -1074,7 +1127,9 @@ fn tcp_probe(ip: &str, port: u16) -> Option<u64> {
 /// lock when several callers sync at once). Treating a failed run as 0
 /// would paint a false "up to date", so only 0/2 yield a count.
 fn pending_updates() -> Option<usize> {
-    let out = Command::new("checkupdates").output().ok()?;
+    // Timed: checkupdates syncs over the network, and a wedged mirror
+    // would otherwise stall the whole status cycle indefinitely.
+    let out = Command::new("timeout").args(["30", "checkupdates"]).output().ok()?;
     match out.status.code() {
         Some(0) | Some(2) => Some(
             String::from_utf8_lossy(&out.stdout)
@@ -1094,7 +1149,9 @@ fn pending_updates() -> Option<usize> {
 /// This is what separates "stay current for security" from the much
 /// noisier "stay current for everything".
 fn security_updates() -> Option<usize> {
-    let out = Command::new("arch-audit").args(["-uq"]).output().ok()?;
+    // Timed for the same reason as pending_updates: this fetches the
+    // advisory DB over the network. A timeout exits 124 → None.
+    let out = Command::new("timeout").args(["30", "arch-audit", "-uq"]).output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -1305,10 +1362,11 @@ fn sample_alerts() -> Alerts {
     Alerts { failed_units, crashes, journal_errs, err_sample, banned_ips, ssh_fails }
 }
 
-/// (tailnet IP, peers online, peers total) from the tailscale container.
+/// (tailnet IP, peers online, peers total) from host tailscaled — the
+/// box's tailnet identity lives on the metal, not in a container.
 fn sample_tailscale() -> Option<(String, usize, usize)> {
     let out = Command::new("timeout")
-        .args(["10", "docker", "exec", "ff-tailscale", "tailscale", "status", "--json"])
+        .args(["10", "tailscale", "status", "--json"])
         .output()
         .ok()?;
     let v: Value = serde_json::from_slice(&out.stdout).ok()?;
@@ -1581,7 +1639,10 @@ fn caddy_sites() -> Vec<Site> {
     out
 }
 
-fn disk_usage() -> (u8, String) {
+/// Root filesystem usage. `None` when `df` failed or its output didn't
+/// parse — rendering that as 0% would paint an empty disk, which is the
+/// most reassuring possible lie about a full one.
+fn disk_usage() -> (Option<u8>, String) {
     Command::new("df")
         .args(["-h", "/"])
         .output()
@@ -1590,9 +1651,9 @@ fn disk_usage() -> (u8, String) {
             let out = String::from_utf8_lossy(&o.stdout).to_string();
             let f: Vec<&str> = out.lines().nth(1)?.split_whitespace().collect();
             let pct = f.get(4)?.trim_end_matches('%').parse().ok()?;
-            Some((pct, format!("{}/{}", f.get(2)?, f.get(1)?)))
+            Some((Some(pct), format!("{}/{}", f.get(2)?, f.get(1)?)))
         })
-        .unwrap_or((0, "?".into()))
+        .unwrap_or((None, "?".into()))
 }
 
 // ---------------------------------------------------------------------------
@@ -2086,8 +2147,13 @@ fn render_claude(frame: &mut Frame, area: Rect, app: &App, bordered: bool) {
     }
     let namew = w.saturating_sub(14).clamp(10, 34);
     for (name, count, last) in &app.claude_projects {
-        let shown: String = if name.len() > namew {
-            format!("…{}", &name[name.len() - (namew - 1)..])
+        // Tail-truncate on CHAR boundaries — project slugs come from
+        // real paths, and a byte slice through a multi-byte char panics
+        // the render thread (which takes the tile down with it).
+        let shown: String = if name.chars().count() > namew {
+            let keep = namew - 1;
+            let start = name.chars().count() - keep;
+            format!("…{}", name.chars().skip(start).collect::<String>())
         } else {
             name.clone()
         };
@@ -2415,7 +2481,13 @@ fn render_disk(frame: &mut Frame, disk_a: Rect, app: &App, bordered: bool) {
         vec![
             Span::styled(" DISK ", accent(C_BLUE)),
             Span::styled(
-                format!("/ {}% · {} · {} images {}", app.disk_pct, app.disk_detail, app.images, nvme),
+                format!(
+                    "/ {} · {} · {} images {}",
+                    app.disk_pct.map_or("?%".into(), |p| format!("{p}%")),
+                    app.disk_detail,
+                    app.images,
+                    nvme
+                ),
                 dim(),
             ),
         ],
@@ -2453,7 +2525,8 @@ fn render_disk(frame: &mut Frame, disk_a: Rect, app: &App, bordered: bool) {
     let [gauge_a, iolabel_a, iograph_a] =
         Layout::vertical([Constraint::Length(1), Constraint::Length(1), Constraint::Min(1)]).areas(body);
     let barw = gauge_a.width as usize;
-    let filled = (app.disk_pct as usize * barw / 100).min(barw);
+    // Unknown usage draws an empty trough, not a full-looking bar.
+    let filled = (app.disk_pct.unwrap_or(0) as usize * barw / 100).min(barw);
     let mut gauge_spans = Vec::with_capacity(barw);
     for i in 0..barw {
         if i < filled {
@@ -2532,6 +2605,9 @@ fn render_status(frame: &mut Frame, stat_a: Rect, app: &App, tile: bool, bordere
         (" STATUS ", status_panel(app))
     };
     let stat_inner = panel(frame, stat_a, bordered, vec![Span::styled(title, accent(C_OXIDE))], None);
+    // Page rather than clip. This panel ends with the SECURITY section, so
+    // silently dropping the overflow hides exactly the lines worth seeing.
+    let content = paged(content, stat_inner.height as usize, 0, app.render_secs);
     frame.render_widget(Paragraph::new(content), stat_inner);
 }
 
@@ -2733,6 +2809,12 @@ fn site_rows(app: &App) -> Vec<Line<'static>> {
 /// One-line docker ops summary: running/total, images, next prune,
 /// pending updates.
 fn docker_line(app: &App) -> Line<'static> {
+    if !app.docker_ok {
+        return Line::from(vec![
+            Span::styled("● ".to_string(), Style::new().fg(C_ALARM)),
+            Span::styled("dockerd unreachable".to_string(), Style::new().fg(C_ALARM)),
+        ]);
+    }
     let mut spans = vec![
         Span::styled("● ".to_string(), Style::new().fg(C_GREEN)),
         Span::styled(
@@ -2955,6 +3037,10 @@ fn main() -> std::io::Result<()> {
     // tearing the terminal down from a surviving process would leave the
     // main loop drawing onto a restored screen. Chain a hook that acts
     // only for the main thread, shutting mouse reporting off first.
+    // Pointer present (rack touch panel)? Read once, up here: it gates
+    // both the terminal's mouse-reporting mode and the tap handling.
+    let touch_enabled = std::env::var("FF_TOUCH").as_deref() == Ok("1");
+
     let main_thread = thread::current().id();
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -2976,9 +3062,15 @@ fn main() -> std::io::Result<()> {
     let _restore = TermGuard;
     // Touch/mouse: each kiosk tile is its own foot window, so a tap on a
     // tile reaches that one process. Capturing the press lets it advance
-    // its own paginated view (see `taps` below). Harmless when no pointer
-    // exists. Needs the compositor to deliver touch as pointer events.
-    execute!(std::io::stdout(), EnableMouseCapture).ok();
+    // its own paginated view (see `taps` below). Needs the compositor to
+    // deliver touch as pointer events.
+    //
+    // Only on the touch panel: mouse reporting makes the terminal swallow
+    // drag-to-select, so leaving it on would cost every ssh/herdr viewer
+    // the ability to copy text off the board for no benefit.
+    if touch_enabled {
+        execute!(std::io::stdout(), EnableMouseCapture).ok();
+    }
     // Kiosk tiles respawn inside one long-lived foot alt-screen (the
     // `while :; do ff-board …` loop), so the buffer still holds the
     // previous run's cells. ratatui assumes a blank screen and only
@@ -2992,10 +3084,7 @@ fn main() -> std::io::Result<()> {
     let mut taps: u64 = 0;
     // A tap fullscreens a tile; the fullscreen view carries the back button
     // and (on OPS) the action buttons. Enabled when a pointer is present.
-    let mut touch = Touch {
-        enabled: std::env::var("FF_TOUCH").as_deref() == Ok("1"),
-        ..Touch::default()
-    };
+    let mut touch = Touch { enabled: touch_enabled, ..Touch::default() };
     let mut redraw = true;
     let mut quit = false;
     let mut last_draw = Instant::now();

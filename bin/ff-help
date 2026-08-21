@@ -20,7 +20,7 @@ Core
                               host line (one-shot fallback)
   ff-status-board           Unified status board (one-shot fallback)
   ff-docker-status          Docker containers + pm2 processes (one-shot)
-  ff-deploy <name> [ref]    git pull + rebuild a project under ~/projects
+  ff-deploy <name>          git pull + rebuild a project under ~/projects
   ff-kiosk-restart          Gracefully restart the kiosk compositor
                               (swaymsg exit; getty autologin respawns it)
   ff-kiosk-shot [out.png]   Screenshot the kiosk display via grim
@@ -37,6 +37,19 @@ Core
                               tailscale + claude login + optional
                               gh / cloudflared. Idempotent — re-run
                               any time.
+  ff-doctor [--quiet]       Read-only convergence check: does the box
+                              still match the repo? Locale, units,
+                              tailnet, stack wiring, board-vs-stack
+                              assumptions, config drift, pending
+                              migrations. Nothing is written. Good
+                              first command of a session.
+  ff-migrate [--status]     Apply pending one-time migrations from the
+                              repo checkout (--status just lists them).
+  ff-firewall               Re-apply the DOCKER-USER rules that keep
+                              container-published ports (caddy's
+                              :80/:443) off any network but the tailnet
+                              and LAN. Runs at boot via ff-firewall
+                              .service; this is the manual re-run.
 
 System info / status
   ff                          fastfetch

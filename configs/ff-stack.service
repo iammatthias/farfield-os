@@ -1,5 +1,5 @@
 [Unit]
-Description=farfield os container stack (tailscale + caddy + cloudflared)
+Description=farfield os container stack (caddy + cloudflared)
 After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target
@@ -8,9 +8,14 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=true
 WorkingDirectory=/srv/stack
-# Build any out-of-date images on first start, then bring everything up.
-# `up -d --build` is idempotent; subsequent boots reuse cached layers.
-ExecStart=/usr/bin/docker compose up -d --build --remove-orphans
+# Build only when the image is genuinely missing (first boot). Building
+# unconditionally on every boot means the binary serving ingress is
+# whatever upstream published most recently, and a network hiccup or a
+# broken upstream turns a routine reboot into an outage. Rebuilds are an
+# explicit act — `docker compose up -d --build`, ff-update, ff-deploy —
+# where a failure happens in front of you.
+ExecStartPre=/bin/sh -c 'docker image inspect ff-caddy:latest >/dev/null 2>&1 || /usr/bin/docker compose build'
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
 ExecStop=/usr/bin/docker compose down
 TimeoutStartSec=600
 

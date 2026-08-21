@@ -64,7 +64,7 @@ valkey-cli      # redis-compatible CLI
 
 ## Ingress stack
 
-See `stack/README.md` and `HOSTING.md` on the box. The short version:
+See `stack/README.md`. The short version:
 `/srv/stack/Caddyfile` is live state — manage sites with `add-site`,
 `add-public-site`, `add-preview-site`, never by clobbering the file with
 repo boilerplate.

@@ -5,6 +5,13 @@
 # session env from a running foot tile and shoots with grim.
 set -euo pipefail
 
+case "${1:-}" in
+    --help | -h)
+        echo "usage: ff-kiosk-shot [out.png]   (default /tmp/ff-kiosk.png)"
+        exit 0
+        ;;
+esac
+
 out=${1:-/tmp/ff-kiosk.png}
 pid=$(pgrep -x foot | head -1) || { echo "ff-kiosk-shot: no kiosk session" >&2; exit 1; }
 

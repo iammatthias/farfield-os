@@ -29,6 +29,24 @@ BIN="$REPO_ROOT/bin"
 # Track services that fail to start so we can warn at the end.
 FAILED_SERVICES=()
 
+# Install a package group, surfacing WHICH group failed instead of dying
+# with a bare pacman error 200 lines up the scrollback. A failed group is
+# recorded and the bootstrap continues — a missing optional tool is not
+# worth aborting a provision over, and the epilogue lists what to retry.
+pac() {
+    local label=$1
+    shift
+    if ! pacman -S --noconfirm --needed "$@"; then
+        echo -e "${RED}  pacman: '$label' group failed — continuing${NC}" >&2
+        FAILED_SERVICES+=("packages:$label")
+    fi
+    # Always succeeds. Under `set -e` a nonzero return here would abort
+    # the whole bootstrap, which is exactly the bare, undiagnosed failure
+    # this wrapper exists to replace. Setup is re-runnable: fix the mirror
+    # and run again to converge.
+    return 0
+}
+
 # Snapshot files we modify so uninstall.sh can restore the original.
 # Only created on first run — re-running setup mustn't clobber the original snapshot.
 snapshot() {
@@ -56,8 +74,16 @@ fi
 echo -e "${GREEN}Updating system...${NC}"
 pacman -Syu --noconfirm
 
-if ! grep -q "en_US.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null; then
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+# Anchored: Arch ships every locale commented out, so an unanchored match
+# hits "#en_US.UTF-8 UTF-8", skips the append, and locale-gen then
+# generates nothing while locale.conf below claims the locale exists.
+if ! grep -qE '^en_US\.UTF-8 UTF-8$' /etc/locale.gen 2>/dev/null; then
+    # Uncomment the stock line if it's there; append only if it isn't.
+    if grep -qE '^#en_US\.UTF-8 UTF-8$' /etc/locale.gen 2>/dev/null; then
+        sed -i 's/^#en_US\.UTF-8 UTF-8$/en_US.UTF-8 UTF-8/' /etc/locale.gen
+    else
+        echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    fi
 fi
 locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
@@ -75,7 +101,7 @@ echo -e "${GREEN}Installing core packages...${NC}"
 # host. Tailscale runs on the HOST — the box is one tailnet node that
 # keeps the machine hostname; sshd and caddy's published ports are both
 # reachable on its IP from anywhere on the tailnet.
-pacman -S --noconfirm --needed \
+pac core \
   zsh neovim git curl wget unzip \
   tailscale \
   docker docker-compose \
@@ -88,12 +114,25 @@ pacman -S --noconfirm --needed \
 echo -e "${GREEN}Installing development tools...${NC}"
 # ghostty-terminfo: ssh clients on Ghostty send TERM=xterm-ghostty; without
 # the entry, zle redraws garble every keystroke.
-pacman -S --noconfirm --needed \
+#
+# Two kinds of package live in this list, and it's worth knowing which is
+# which before trimming:
+#   - Consumed by this repo: lsof (port helpers), pacman-contrib
+#     (checkupdates, paccache), arch-audit + smartmontools (board STATUS),
+#     jq (ff-display, helpers), rsync (stack sync), openssh, ufw, fail2ban.
+#   - Deliberate interactive tooling with no in-repo caller: tree, bc,
+#     rclone, 7zip, imagemagick, httpie, mosh, speedtest-cli, nmap,
+#     tcpdump, wireshark-cli, ncdu, iotop, nethogs. These are here because
+#     the owner reaches for them at a shell — "opinionated, not minimal"
+#     is the whole premise. Don't prune them for lacking a caller.
+# (net-tools was dropped: ifconfig/netstat are superseded by iproute2's
+# ip/ss, which ship in base and are what the helpers actually use.)
+pac devtools \
   ghostty-terminfo \
   eza bat fd fzf zoxide ripgrep jq yq \
   fastfetch htop btop iotop nethogs lsof ncdu \
   tree bc rsync rclone 7zip imagemagick httpie \
-  net-tools openssh mosh speedtest-cli ufw fail2ban nmap tcpdump wireshark-cli \
+  openssh mosh speedtest-cli ufw fail2ban nmap tcpdump wireshark-cli \
   postgresql valkey sqlite smartmontools pacman-contrib arch-audit
 
 echo -e "${GREEN}Installing display stack (sway kiosk dashboard)...${NC}"
@@ -105,7 +144,7 @@ echo -e "${GREEN}Installing display stack (sway kiosk dashboard)...${NC}"
 # btop and the shell prompt rely on; noto covers unicode
 # fallback so foreign glyphs render instead of tofu. grim backs
 # ff-kiosk-shot screenshots.
-pacman -S --noconfirm --needed sway foot grim \
+pac display sway foot grim \
     ttf-ibm-plex ttf-jetbrains-mono-nerd \
     noto-fonts noto-fonts-emoji
 
@@ -123,13 +162,13 @@ if [ "$ROOT_FS" = "btrfs" ]; then
 
     # snap-pac auto-snapshots before/after every pacman transaction; once
     # it's installed, every subsequent pacman call below will snapshot.
-    pacman -S --noconfirm --needed snapper snap-pac inotify-tools
+    pac snapshots snapper snap-pac inotify-tools
 
     # grub-btrfs adds a "Snapshots" submenu to GRUB so you can boot into
     # any snapshot when an update breaks the system. Only meaningful on
     # GRUB; systemd-boot has no equivalent.
     if command -v grub-mkconfig &>/dev/null; then
-        pacman -S --noconfirm --needed grub-btrfs
+        pac grub-btrfs grub-btrfs
     else
         echo -e "${YELLOW}Not on GRUB — skipping grub-btrfs.${NC}"
         echo -e "${YELLOW}For boot-into-snapshot on systemd-boot, see https://wiki.archlinux.org/title/Snapper${NC}"
@@ -266,6 +305,10 @@ echo -e "${GREEN}Configuring Docker...${NC}"
 # api.anthropic.com etc. Set explicit upstream resolvers at the daemon
 # level so every container inherits them.
 install -d /etc/docker
+# uninstall.sh restores this snapshot; keeping it means a re-run can't
+# quietly drop hand-added daemon settings (registry mirrors, log opts).
+[ -f /etc/docker/daemon.json ] && [ ! -f /etc/docker/daemon.json.ff-orig ] && \
+    cp -a /etc/docker/daemon.json /etc/docker/daemon.json.ff-orig
 cat > /etc/docker/daemon.json <<'EOF'
 {
   "dns": ["1.1.1.1", "1.0.0.1", "8.8.8.8"]
@@ -297,7 +340,13 @@ ufw default allow outgoing || true
 # Detect the actual sshd port instead of trusting `ufw allow ssh` (which
 # only opens 22). Critical when running setup.sh over SSH on a remote box
 # with a non-default port — wrong rule = locked out, need physical access.
-SSH_PORTS=$(awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null)
+#
+# `sshd -T` is the authority: it resolves Include directives, so a port
+# set in a sshd_config.d/ drop-in counts. Parsing the main file alone
+# misses those and opens the wrong port. Falls back to that parse only if
+# sshd -T fails (e.g. a config error), then to 22.
+SSH_PORTS=$(sshd -T 2>/dev/null | awk '/^port /{print $2}')
+[ -z "$SSH_PORTS" ] && SSH_PORTS=$(awk '/^[[:space:]]*Port[[:space:]]+[0-9]+/ {print $2}' /etc/ssh/sshd_config 2>/dev/null)
 [ -z "$SSH_PORTS" ] && SSH_PORTS=22
 for _port in $SSH_PORTS; do
     ufw allow "$_port/tcp" || true
@@ -310,8 +359,20 @@ ufw allow 443/tcp || true
 # docker bridge and traverses INPUT — Docker only manages FORWARD — so
 # default-deny silently drops it. Docker's default address pools all live
 # in 172.16.0.0/12.
-ufw allow from 172.16.0.0/12 comment 'docker containers -> host services' || true
+# Scoped to the ports containers legitimately proxy to (add-site targets
+# and pm2 apps live in the high range; 5432/6379 are postgres/valkey).
+# A blanket allow would also expose sshd to anything that gets a shell in
+# any container.
+for _dport in 5432 6379 1024:65535; do
+    ufw allow from 172.16.0.0/12 to any port "$_dport" proto tcp \
+        comment 'docker containers -> host services' || true
+done
 
+# Snapshot a pre-existing jail.local before overwriting it, the same way
+# sshd_config/locale.gen are handled — a re-run must not silently discard
+# hand-tuned jails.
+[ -f /etc/fail2ban/jail.local ] && [ ! -f /etc/fail2ban/jail.local.ff-orig ] && \
+    cp -a /etc/fail2ban/jail.local /etc/fail2ban/jail.local.ff-orig
 install -m 644 "$CONFIGS/fail2ban-jail.local" /etc/fail2ban/jail.local
 # Match the jail to the real sshd port(s) detected above — the template's
 # `port = ssh` only covers 22, which is wrong on a non-default-port box.
@@ -504,7 +565,8 @@ EOF
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.gitconfig"
 fi
 
-# systemd unit that runs `docker compose up -d --build` at boot.
+# systemd unit that brings the stack up at boot (building only if the
+# caddy image is missing — see the unit's ExecStartPre).
 install -m 644 "$CONFIGS/ff-stack.service" /etc/systemd/system/ff-stack.service
 
 # Weekly prune of dangling images + old stopped containers — every
@@ -513,12 +575,21 @@ install -m 644 "$CONFIGS/ff-stack.service" /etc/systemd/system/ff-stack.service
 install -m 644 "$CONFIGS/ff-docker-prune.service" /etc/systemd/system/ff-docker-prune.service
 install -m 644 "$CONFIGS/ff-docker-prune.timer" /etc/systemd/system/ff-docker-prune.timer
 
+# Container-published ports (caddy's :80/:443) bypass UFW entirely —
+# docker's DNAT lands in FORWARD, which UFW doesn't filter. This unit
+# puts the actual policy in DOCKER-USER. See bin/ff-firewall.
+install -m 644 "$CONFIGS/ff-firewall.service" /etc/systemd/system/ff-firewall.service
+
 # (The passwordless-sudo grant moved up before the yay build, which
 # needs it — see the AUR helper section.)
 
 systemctl daemon-reload
 systemctl enable ff-stack.service
 systemctl enable --now ff-docker-prune.timer
+# --now so the rules apply to this boot too, not just the next one.
+# Tolerated failure: dockerd may not be up yet on a pre-reboot kernel
+# mismatch, and the unit re-runs with docker anyway (PartOf).
+systemctl enable --now ff-firewall.service 2>/dev/null || true
 
 # The box's tailnet identity. Unauthenticated until `ff-bootstrap` runs
 # `tailscale up` — enabling the daemon now just means the join survives
@@ -586,6 +657,8 @@ install -m 755 "$BIN/ff-project-init"     /usr/local/bin/ff-project-init
 install -m 755 "$BIN/ff-bootstrap"        /usr/local/bin/ff-bootstrap
 install -m 755 "$BIN/ff-deploy"           /usr/local/bin/ff-deploy
 install -m 755 "$BIN/ff-migrate"          /usr/local/bin/ff-migrate
+install -m 755 "$BIN/ff-doctor"           /usr/local/bin/ff-doctor
+install -m 755 "$BIN/ff-firewall"         /usr/local/bin/ff-firewall
 
 # One-time migrations (migrations/*.sh, marker-tracked, idempotent) —
 # converges upgraded boxes with fresh installs.

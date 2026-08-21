@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 farfield os is an opinionated home-server bootstrap for Arch Linux. One
 script provisions an Arch box for remote development over SSH: enhanced
-zsh, tmux, Docker, PostgreSQL + Valkey, a broad set of language runtimes
+zsh (Zinit + a hand-rolled prompt), herdr for persistent sessions,
+Docker, PostgreSQL + Valkey, a broad set of language runtimes
 (Node, Python via uv, Ruby, Rust, Go, Java), host tailscaled as the
 box's tailnet identity, plus a docker-compose stack under /srv/stack
 for the network-ingress layer (Caddy, Cloudflare Tunnel). Day-to-day
@@ -16,8 +17,9 @@ It also installs sway (Wayland compositor) + foot so an optional attached
 display becomes a live kiosk dashboard (auto-login on tty1 → sway → six
 `ff-board <panel>` foot tiles — host(cpu+mem), claude, net / disk,
 containers, status — arranged 3×2 by `ff-kiosk-tiles`;
-`bin/ff-dashboard` runs the same board as a single tmux view for ssh
-sessions). The DRM-status guard in `~/.zprofile` is a no-op on truly
+`bin/ff-dashboard` runs the same board as a single full-window view for
+ssh sessions — run it inside herdr to persist). The kiosk falls back to
+btop when `ff-board` isn't built. The DRM-status guard in `~/.zprofile` is a no-op on truly
 headless boxes. sway is used (not a minimal dwl-style WM) because
 it exposes `wl_touch` — the rack touch panel's tap interactions
 (tap a tile → fullscreen; action buttons in the fullscreen OPS view) only
@@ -78,14 +80,17 @@ farfield-os/
 │   ├── setup.sh          # Bootstrap (run as root)
 │   └── uninstall.sh      # Revert configuration
 ├── configs/              # Files installed verbatim by setup.sh
-│   ├── zshrc, tmux.conf, foot.ini, sway-config, zprofile, btop.conf
-│   ├── fastfetch.jsonc, fail2ban-jail.local, getty-autologin.conf
-│   ├── ff-stack.service, ff-docker-prune.{service,timer}
+│   ├── zshrc, zshenv, zsh-prompt.zsh, foot.ini, sway-config, zprofile
+│   ├── btop.conf, btop-farfield.theme, fastfetch.jsonc
+│   ├── fail2ban-jail.local, getty-autologin.conf
+│   ├── ff-stack.service, ff-firewall.service, ff-docker-prune.{service,timer}
 │   ├── journald-farfield.conf, tmpfiles-farfield.conf, udev-rapl.rules
 │   └── server-CLAUDE.md             # installed to ~/CLAUDE.md (system context for Claude Code)
+├── migrations/           # run-once convergence scripts (see ff-migrate)
+│   └── _template.sh      #   scaffold + the contract migrations must honor
 ├── bin/                  # ~20 ff-* helpers installed to /usr/local/bin
-│   └── ff-{info,update,help,deploy,dashboard,bootstrap,display,
-│         kiosk-*,*-board,*-status,project-init,claude-stats}
+│   └── ff-{info,update,help,deploy,dashboard,bootstrap,display,doctor,
+│         firewall,migrate,kiosk-*,*-board,*-status,project-init,claude-stats}
 ├── board/                # ff-board — fullscreen ratatui kiosk TUI
 │   ├── Cargo.toml        #   (built by setup.sh; host + container graphs)
 │   └── src/main.rs
@@ -123,25 +128,40 @@ ff-help     # Full command reference
    package — it lives in the /srv/stack compose stack.)
 2. **System configuration**: install configs from `configs/` to their canonical
    locations, configure UFW + fail2ban + SSH hardening, init Postgres cluster,
-   enable systemd units (ff-stack, Docker, Postgres, Valkey).
-3. **Per-user tooling** (run as `$REAL_USER` via `sudo -u`): Oh My Zsh, plugins,
-   Spaceship prompt, npm globals (yarn/pnpm/pm2/eslint/prettier/jest),
-   Claude Code (native installer), Bun, `uv tool install` (ruff/pytest/black),
-   Ruby bundler, rustup, Go delve.
+   enable systemd units (ff-stack, ff-firewall, Docker, Postgres, Valkey,
+   tailscaled).
+3. **Per-user tooling** (run as `$REAL_USER` via `sudo -u`): Zinit + zsh
+   plugins, npm globals (yarn/pnpm/pm2/eslint/prettier/jest),
+   Claude Code (native installer), herdr, Bun, `uv tool install`
+   (ruff/pytest/black), Ruby bundler, rustup, Go delve.
+
+Package installs go through the `pac <group> <pkgs...>` wrapper, which records
+a failed group in `FAILED_SERVICES` and continues rather than aborting the
+bootstrap with a bare pacman error.
 
 Setup is run as root. The script derives the target user via `logname`, and
-all per-user work runs through `sudo -u "$REAL_USER"`.
+all per-user work runs through `sudo -u "$REAL_USER"`. It ends by calling
+`ff-migrate`, so upgrades and fresh installs converge on the same state.
 
 ### Helper scripts (`/usr/local/bin/`)
 
-- `ff-info`  — `exec fastfetch` (uses the installed `~/.config/fastfetch/config.jsonc`)
-- `ff-update`— `pacman -Syu` + cache clean
-- `ff-help`  — printed reference of installed aliases / functions
+- `ff-info`   — `exec fastfetch` (uses the installed `~/.config/fastfetch/config.jsonc`)
+- `ff-update` — `pacman -Syu` + cache clean
+- `ff-help`   — printed reference of installed aliases / functions
+- `ff-doctor` — read-only convergence check (locale, units, tailnet, stack,
+  board-vs-stack assumptions, installed-vs-repo drift, pending migrations).
+  Run it first when picking up work on the box.
+- `ff-migrate` — apply pending `migrations/`; `--status` lists without running
+
+Helper convention: scripts that CHANGE state use `set -euo pipefail` (fail
+fast); scripts that RENDER a board use `set -uo pipefail`, so one failing
+sub-command doesn't abort the whole display. Keep that split.
 
 ### Generated user files
 
 - `~/.zshrc`                          — copied from `configs/zshrc`
-- `~/.tmux.conf`                      — copied from `configs/tmux.conf`
+- `~/.zshenv`                         — copied from `configs/zshenv` (PATH/env)
+- `~/.config/zsh/prompt.zsh`          — copied from `configs/zsh-prompt.zsh`
 - `~/.config/fastfetch/config.jsonc`  — copied from `configs/fastfetch.jsonc`
 - `~/CLAUDE.md`                       — copied from `configs/server-CLAUDE.md` (only if not already present); gives Claude Code system context
 

@@ -1,9 +1,9 @@
 #!/bin/bash
-# farfield os — docker containers + pm2 processes, formatted for the dashboard pane.
+# farfield os — docker containers + pm2 processes (one-shot readout).
 #
-# A dedicated helper (mirroring ff-services-status)
-# rather than an inline command string — the latter was fragile to quote
-# inside tmux and silently killed its pane.
+# A dedicated helper, mirroring ff-services-status, so the formatting
+# lives in a file that can be read and edited rather than in an inline
+# command string.
 set -uo pipefail
 
 printf '\033[1;36m═══ Docker ═══\033[0m\n'

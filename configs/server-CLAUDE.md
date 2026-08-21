@@ -92,10 +92,24 @@ Stack lifecycle is `cd /srv/stack && docker compose <cmd>`. The
 
 ## farfield os helpers (in PATH as `/usr/local/bin/ff-*`)
 
+- `ff-doctor` — **run this first.** Read-only check that the box still
+  matches the repo: locale, units, tailnet identity, stack wiring,
+  board-vs-stack assumptions, config drift, pending migrations. Writes
+  nothing. Exit 0 clear / 1 warnings / 2 errors.
 - `ff-info`   — fastfetch system report
-- `ff-update` — `pacman -Syu` + cache clean
+- `ff-update [--yes]` — `pacman -Syu` + cache clean (`--yes` survives an
+  ssh drop via systemd-run)
 - `ff-deploy <project>` — git-pull + rebuild a `~/projects/<project>` stack
+- `ff-migrate [--status]` — apply pending one-time migrations
+- `ff-firewall` — re-apply DOCKER-USER rules for published ports
 - `ff-help`   — full alias / function reference
+- `ff-dashboard` — the board in this terminal (inside herdr to persist)
+- `ff-display [on|off|status|log]` — kiosk display power (manual)
+- `ff-kiosk-restart` / `ff-kiosk-shot [out.png]` — restart tiles / screenshot
+- `ff-services-status`, `ff-docker-status`, `ff-status-board`,
+  `ff-metrics-board`, `ff-claude-stats` — one-shot status readouts
+- `ff-project-init <path> [desc]` — scaffold a project dir + CLAUDE.md
+- `ff-bootstrap` — interactive post-install (tailscale + claude login)
 
 ## Useful shell shortcuts
 

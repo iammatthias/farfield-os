@@ -63,11 +63,17 @@ the focused tile):
 │ cpu heat +   │ │ live sessions│ │ ↓↑ rates +   │
 │ mem, stacked │ │ + projects   │ │ peak graphs  │
 ╰──────────────╯ ╰──────────────╯ ╰──────────────╯
-╭ DISK ────────╮ ╭ CONTAINERS ──╮ ╭ STATUS ──────╮
-│ gauge + io   │ │ CPU/MEM      │ │ services ·   │
-│ r/w graphs   │ │ sparklines   │ │ sites · procs│
+╭ DISK ────────╮ ╭ CONTAINERS ──╮ ╭ OPS ─────────╮
+│ gauge + io   │ │ CPU/MEM      │ │ alerts ·     │
+│ r/w graphs   │ │ sparklines   │ │ claude · sec │
 ╰──────────────╯ ╰──────────────╯ ╰──────────────╯
 ```
+
+The sixth panel is titled two different things on purpose: **OPS** as a
+kiosk tile (`ff-board status`), where services and sites already have
+their own tiles so it shows alerts, Claude activity and security; and
+**STATUS** in the single-terminal board, where it's the only place that
+information lives and carries the services and sites list too.
 
 The compositor owns the mosaic: every tile is a real window you can
 focus, swap, zoom, or kill (it respawns), and sway supplies the gaps
@@ -86,14 +92,15 @@ hwmon temperature); container CPU/MEM sparklines + net rates come
 straight off the Docker socket every 2s. Rendering is diff-based —
 no flicker, no full repaints. `q` quits (the kiosk respawns it).
 
-If `ff-board` isn't built (no cargo at setup time), the dashboard
-falls back to btop + the shell boards (`ff-metrics-board` +
-`ff-status-board`), which remain installed as one-shot CLIs.
+If `ff-board` isn't built (no cargo at setup time), both surfaces
+degrade: `ff-dashboard` runs btop instead, and the kiosk shows btop in
+the first tile with build instructions in the rest. The shell boards
+(`ff-metrics-board` + `ff-status-board`) remain installed as one-shot
+CLIs either way.
 
-You can also run `ff-dashboard` from any shell — it attaches the
-same session if it already exists, or builds it. Run over plain ssh
-(no tty) it creates/refreshes the session detached, which is how you
-rebuild the kiosk layout remotely.
+`ff-dashboard` is a plain launcher — it runs the board in the current
+terminal. For a session that survives an ssh drop, run it inside herdr
+(`t`, then `ff-dashboard`).
 
 The dashboard helpers are stand-alone too:
 
@@ -240,7 +247,7 @@ yay-update / yay-install / yay-remove / yay-search / yay-info
 
 ```bash
 ff                     # fastfetch
-myip                   # public IP (curl ifconfig.me)
+myip                   # public IP (api.ipify.org)
 localip                # local IPv4 addresses
 ports                  # ss -tulpn
 sqlite                 # sqlite3
@@ -248,7 +255,8 @@ smart                  # sudo smartctl -a
 ufw-status / fail2ban-status
 nmap-local             # nmap -sn 192.168.1.0/24
 nmap-scan              # nmap -sS -O -F
-lsof-port <port>       # lsof -i :<port>
+port <port>            # what's listening on a port (lsof -i tcp:<port>)
+killport <port>        # kill it
 c                      # clear
 reload                 # source ~/.zshrc
 ```
@@ -262,13 +270,9 @@ backup-system    # snapshot /srv/stack/Caddyfile, /etc/{ssh,ufw,fail2ban},
 
 ## Adding your own
 
-Drop functions/aliases into `~/.zshrc` and `source ~/.zshrc`. Or, for a
-cleaner override pattern, create `~/.zshrc.local` and add this near the top
-of `~/.zshrc`:
-
-```bash
-[ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
-```
+Put your own functions and aliases in `~/.zshrc.local`. The shipped
+`~/.zshrc` already sources it as its last line, so it loads after
+everything else and wins — and re-running setup can't clobber it.
 
 Editing `~/.zshrc` in place works fine — re-running `setup.sh` will back up
 the existing file as `~/.zshrc.ff-backup.<timestamp>` before reinstalling.

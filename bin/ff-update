@@ -7,6 +7,14 @@
 # wraps the transaction in btrfs snapshots either way.
 set -euo pipefail
 
+case "${1:-}" in
+    --help | -h)
+        echo "usage: ff-update [--yes|-y]"
+        echo "  --yes  unattended, under systemd-run so it survives an ssh drop"
+        exit 0
+        ;;
+esac
+
 if [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ]; then
     UNIT=ff-sysupgrade
     echo "Updating system (unattended, via systemd-run)..."

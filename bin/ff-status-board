@@ -1,14 +1,11 @@
 #!/bin/bash
-# farfield os — unified status board: fallback lower pane for ff-dashboard.
+# farfield os — unified status board (one-shot; ff-board is the live view).
 #
 # One renderer laying host services, containers and Caddy sites into
-# three aligned columns. btop owns the upper pane. A grid — rather than
-# three stacked lists in three tmux panes — so a wide display reads at
-# a glance instead of feeling cramped, and there are no pane seams to
-# clash.
+# three aligned columns — a grid, rather than three stacked lists, so a
+# wide display reads at a glance instead of feeling cramped.
 #
-# Self-refreshes from ff-dashboard's pane loop; also runs one-shot.
-# Columns size to the terminal width, so it adapts to any pane size.
+# One-shot: prints once and exits. Columns size to the terminal width.
 
 set -uo pipefail
 

@@ -25,6 +25,18 @@ fi
 echo "host-tailscale: adopting the container's tailnet identity on the host"
 cd /srv/stack
 
+# Ingress is down from here until the final `up -d`. Anything that fails
+# in between must not leave the box dark: bring the stack back and say so
+# loudly. (The stack is safe to start either way — the compose file no
+# longer defines a tailscale service, so it comes up on whichever tailnet
+# identity ended up live.)
+restore() {
+    echo "host-tailscale: FAILED mid-migration — restarting the stack" >&2
+    docker compose up -d --remove-orphans || true
+    echo "host-tailscale: stack restarted; re-run ff-migrate after fixing" >&2
+}
+trap restore ERR
+
 # Stack down. --remove-orphans clears ff-tailscale, which the current
 # compose no longer defines. Public sites are dark until the final up.
 docker compose down --remove-orphans
@@ -49,6 +61,7 @@ tailscale set --ssh=false
 
 # Stack back up, caddy-owned netns.
 docker compose up -d --build --remove-orphans
+trap - ERR
 
 # Retire the old container state (kept for rollback) + stale env vars.
 mv /srv/stack/data/tailscale /srv/stack/data/tailscale.retired

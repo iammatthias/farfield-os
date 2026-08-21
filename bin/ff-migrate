@@ -9,27 +9,72 @@
 #
 # Migrations must be written so that running them on an already-migrated
 # (or freshly installed) box is a no-op — guard every action on the
-# artifact it fixes actually existing.
+# artifact it fixes actually existing. See migrations/_template.sh.
+#
+#   ff-migrate            run everything pending
+#   ff-migrate --status   list applied / pending, run nothing
 set -euo pipefail
 
-REPO=${FF_REPO:-}
-if [ -z "$REPO" ]; then
-    for cand in "$HOME/farfield-os" "$HOME/gnar"; do
-        [ -d "$cand/migrations" ] && REPO=$cand && break
+STATE=/var/lib/farfield/migrations
+
+find_repo() {
+    local repo=${FF_REPO:-}
+    if [ -z "$repo" ]; then
+        for cand in "$HOME/farfield-os" "$HOME/gnar"; do
+            [ -d "$cand/migrations" ] && repo=$cand && break
+        done
+    fi
+    if [ -z "$repo" ] || [ ! -d "$repo/migrations" ]; then
+        echo "ff-migrate: no repo checkout found (set FF_REPO)" >&2
+        exit 1
+    fi
+    printf '%s' "$repo"
+}
+
+REPO=$(find_repo)
+
+# --status: report without touching anything (no sudo needed).
+if [ "${1:-}" = "--status" ]; then
+    pending=0
+    for m in "$REPO"/migrations/*.sh; do
+        [ -e "$m" ] || continue
+        name=$(basename "$m")
+        [ "$name" = "_template.sh" ] && continue
+        if [ -f "$STATE/$name" ]; then
+            printf '  applied  %s\n' "$name"
+        else
+            printf '  PENDING  %s\n' "$name"
+            pending=$((pending + 1))
+        fi
     done
-fi
-if [ -z "$REPO" ] || [ ! -d "$REPO/migrations" ]; then
-    echo "ff-migrate: no repo checkout found (set FF_REPO)" >&2
-    exit 1
+    echo
+    if [ "$pending" -eq 0 ]; then
+        echo "ff-migrate: up to date"
+    else
+        echo "ff-migrate: $pending pending — run 'ff-migrate' to apply"
+    fi
+    exit 0
 fi
 
-STATE=/var/lib/farfield/migrations
+# The target user has to be resolvable BEFORE anything runs: migrations
+# touch the user's home, and a run where that's unknown would apply the
+# root half, skip the user half, and still get marked converged forever.
+FF_REAL_USER="${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || true)}}"
+if [ -z "$FF_REAL_USER" ] || [ "$FF_REAL_USER" = "root" ]; then
+    echo "ff-migrate: cannot resolve the target user (set FF_REAL_USER)" >&2
+    echo "            refusing to run — a partial migration would be marked done" >&2
+    exit 1
+fi
+export FF_REAL_USER
+
 sudo install -d "$STATE"
 
 ran=0
 for m in "$REPO"/migrations/*.sh; do
     [ -e "$m" ] || continue
     name=$(basename "$m")
+    # Not a migration — the scaffold new ones are copied from.
+    [ "$name" = "_template.sh" ] && continue
     if [ -f "$STATE/$name" ]; then
         continue
     fi
@@ -37,7 +82,7 @@ for m in "$REPO"/migrations/*.sh; do
     # FF_REAL_USER survives the sudo hop — SUDO_USER becomes "root" when
     # root itself invokes sudo (e.g. from setup.sh), which would point
     # user-home steps at /root.
-    if sudo FF_REAL_USER="${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || true)}}" bash "$m"; then
+    if sudo FF_REAL_USER="$FF_REAL_USER" bash "$m"; then
         sudo touch "$STATE/$name"
         ran=$((ran + 1))
     else

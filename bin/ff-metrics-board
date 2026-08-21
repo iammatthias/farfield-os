@@ -1,5 +1,6 @@
 #!/bin/bash
-# farfield os — container utilization charts: the kiosk dashboard's lower-left pane.
+# farfield os — container utilization charts (one-shot; ff-board's
+# CONTAINERS tile is the live view).
 #
 # Unicode sparklines of per-container CPU and memory over a sliding
 # window, with live network throughput and a host summary line (load

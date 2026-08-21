@@ -8,12 +8,18 @@
 # stack-cycling change — see stack/README.md).
 set -euo pipefail
 
+# Fail rather than skip the user half: a run that converges only the root
+# half still gets marked done, so the user's dotfiles would keep their
+# gnar-era state permanently.
 REAL_USER=${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "")}}
 if [ -z "$REAL_USER" ] || [ "$REAL_USER" = "root" ]; then
-    echo "cannot determine target user (set FF_REAL_USER) — skipping user-home steps" >&2
-    REAL_HOME=""
-else
-    REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    echo "cannot determine target user (set FF_REAL_USER)" >&2
+    exit 1
+fi
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+if [ -z "$REAL_HOME" ] || [ ! -d "$REAL_HOME" ]; then
+    echo "no home directory for $REAL_USER" >&2
+    exit 1
 fi
 
 # --- old helper binaries (new ones are installed by setup.sh) ---------------
@@ -87,7 +93,7 @@ done
 # setup.sh only installs it when absent; on a renamed box the old GNAR
 # copy must be replaced so agents get current names. Sentinel-guarded —
 # a hand-written CLAUDE.md is left alone.
-if [ -n "$REAL_HOME" ] && [ -f "$REAL_HOME/CLAUDE.md" ] && \
+if [ -f "$REAL_HOME/CLAUDE.md" ] && \
    head -n1 "$REAL_HOME/CLAUDE.md" | grep -q "^# GNAR Server$"; then
     src=""
     for cand in "$REAL_HOME/farfield-os/configs/server-CLAUDE.md" "$REAL_HOME/gnar/configs/server-CLAUDE.md"; do

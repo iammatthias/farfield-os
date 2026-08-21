@@ -1,0 +1,92 @@
+#!/bin/bash
+# farfield os — restrict container-published ports to the tailnet.
+#
+# Why this exists: docker publishes ports by writing DNAT rules that
+# traffic hits in FORWARD, and UFW only filters INPUT. So `ufw allow
+# 80/tcp` neither opens nor closes a published container port — the
+# ingress stack's :80/:443 are reachable from any network the box can see,
+# regardless of what UFW says. Docker leaves the DOCKER-USER chain empty
+# and consults it first, precisely so the operator can put policy there.
+#
+# Policy: caddy's published ports serve the tailnet (and, deliberately,
+# the LAN — mDNS `add-site` names resolve there). Everything else that
+# arrives from off-box is dropped before it reaches a container.
+#
+# Public traffic is unaffected: it arrives through cloudflared, which
+# reaches caddy over loopback inside a shared network namespace and never
+# transits this chain.
+#
+# Idempotent — flushes its own managed rules, then re-adds them. Run by
+# ff-firewall.service at boot (after docker) and safe to re-run by hand.
+set -uo pipefail
+
+TAG='ff-managed'
+# Sources allowed to reach published container ports.
+ALLOW_NETS=(
+    "100.64.0.0/10"   # tailnet (CGNAT range)
+    "192.168.0.0/16"  # LAN
+    "10.0.0.0/8"      # LAN
+    "172.16.0.0/12"   # LAN + docker bridges (container -> container)
+)
+PORTS="80,443"
+
+if ! command -v iptables >/dev/null 2>&1; then
+    echo "ff-firewall: iptables not found" >&2
+    exit 0
+fi
+
+# Wait for docker to create DOCKER-USER (it's made at daemon start; the
+# unit orders us after docker.service but the chain can lag the socket).
+for _ in $(seq 1 30); do
+    iptables -L DOCKER-USER -n >/dev/null 2>&1 && break
+    sleep 1
+done
+if ! iptables -L DOCKER-USER -n >/dev/null 2>&1; then
+    echo "ff-firewall: DOCKER-USER chain absent — is dockerd running?" >&2
+    exit 1
+fi
+
+# Drop our previous rules (match on the comment tag), leaving any rule a
+# human added by hand alone.
+flush_managed() {
+    local ipt=$1
+    # Delete by rule spec, highest line number first so indices hold.
+    local lines
+    lines=$($ipt -L DOCKER-USER -n --line-numbers 2>/dev/null \
+            | awk -v tag="$TAG" '$0 ~ tag {print $1}' | sort -rn)
+    local n
+    for n in $lines; do
+        $ipt -D DOCKER-USER "$n" 2>/dev/null || true
+    done
+}
+
+apply() {
+    local ipt=$1
+    shift
+    local nets=("$@")
+    flush_managed "$ipt"
+    # Rules are inserted at the top in reverse order, so the final chain
+    # order is: [allow each net] ... [drop the rest].
+    #
+    # Only NEW connections from outside are judged: established flows and
+    # locally-originated traffic must pass untouched.
+    $ipt -I DOCKER-USER 1 -p tcp -m multiport --dports "$PORTS" \
+        -m conntrack --ctstate NEW \
+        -m comment --comment "$TAG drop non-local ingress" -j DROP
+    local net
+    for net in "${nets[@]}"; do
+        $ipt -I DOCKER-USER 1 -s "$net" -p tcp -m multiport --dports "$PORTS" \
+            -m comment --comment "$TAG allow $net" -j RETURN
+    done
+}
+
+apply iptables "${ALLOW_NETS[@]}"
+
+# IPv6: the box has no v6 ingress today, so the policy is simply "no
+# published-port traffic from off-box". Skipped when ip6tables is absent
+# or the chain doesn't exist (docker started with ipv6 disabled).
+if command -v ip6tables >/dev/null 2>&1 && ip6tables -L DOCKER-USER -n >/dev/null 2>&1; then
+    apply ip6tables "fd7a:115c:a1e0::/48"   # tailnet ULA
+fi
+
+echo "ff-firewall: published ports ${PORTS} restricted to tailnet + LAN"

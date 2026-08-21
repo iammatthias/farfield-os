@@ -14,7 +14,7 @@ set -euo pipefail
 PROJECT_PATH=${1:-}
 DESCRIPTION=${2:-}
 
-if [ -z "$PROJECT_PATH" ]; then
+if [ -z "$PROJECT_PATH" ] || [ "$PROJECT_PATH" = "--help" ] || [ "$PROJECT_PATH" = "-h" ]; then
     cat <<'USAGE'
 Usage: ff-project-init <path> [description]
 

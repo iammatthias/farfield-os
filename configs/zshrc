@@ -263,7 +263,10 @@ alias fail2ban-status="sudo fail2ban-client status"
 alias caddy-edit="sudo \$EDITOR /srv/stack/Caddyfile"
 alias caddy-reload="sudo docker compose -f /srv/stack/docker-compose.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile"
 alias caddy-logs="sudo docker compose -f /srv/stack/docker-compose.yml logs -f caddy"
-alias caddy-restart="sudo docker compose -f /srv/stack/docker-compose.yml restart caddy"
+# Cycles the WHOLE stack, deliberately. caddy owns the network namespace
+# cloudflared joins, so restarting caddy alone strands the connector on a
+# dead netns and takes every public site down with it.
+alias caddy-restart="sudo docker compose -f /srv/stack/docker-compose.yml up -d --remove-orphans"
 
 # AUR (yay)
 alias yay-update="yay -Syu"

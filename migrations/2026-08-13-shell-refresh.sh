@@ -5,12 +5,19 @@
 # leftovers so they don't linger as cruft. Idempotent.
 set -euo pipefail
 
+# Fail rather than skip: every step below is in the user's home, so a run
+# without a resolvable user does nothing — and ff-migrate would then mark
+# it converged forever, leaving OMZ in place with no second chance.
 REAL_USER=${FF_REAL_USER:-${SUDO_USER:-$(logname 2>/dev/null || echo "")}}
 if [ -z "$REAL_USER" ] || [ "$REAL_USER" = "root" ]; then
-    echo "cannot determine target user (set FF_REAL_USER) — skipping" >&2
-    exit 0
+    echo "cannot determine target user (set FF_REAL_USER)" >&2
+    exit 1
 fi
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+if [ -z "$REAL_HOME" ] || [ ! -d "$REAL_HOME" ]; then
+    echo "no home directory for $REAL_USER" >&2
+    exit 1
+fi
 
 # Oh My Zsh + its plugin clones (the new config uses Zinit under
 # ~/.local/share/zinit instead).

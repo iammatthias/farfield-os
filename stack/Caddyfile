@@ -1,7 +1,8 @@
 # farfield os — Caddy configuration. Three listeners:
 #
-#   :80   — PRIVATE HTTP. Reached over the tailnet (caddy lives in the
-#           tailscale container's netns). Internal services via add-site.
+#   :80   — PRIVATE HTTP. Published on the host, so it's reached over the
+#           tailnet (host tailscaled owns the tailnet identity) and the
+#           LAN. Internal services via add-site.
 #
 #   :443  — PRIVATE HTTPS. Reached over the tailnet on
 #           {$PREVIEW_APEX} and *.{$PREVIEW_APEX}. Real LE wildcard cert
@@ -29,18 +30,18 @@
 {
     servers {
         # Public traffic arrives from cloudflared over LOOPBACK inside
-        # the shared tailscale netns. Without trusting loopback as a
+        # the netns it shares with caddy. Without trusting loopback as a
         # proxy, every public request logs client_ip 127.0.0.1 and
         # backends receive X-Forwarded-Proto: http — https redirect
-        # loops and broken Secure cookies. private_ranges covers
-        # 127.0.0.0/8 (plus RFC1918 and the tailnet's CGNAT
-        # 100.64.0.0/10).
+        # loops and broken Secure cookies.
         #
-        # Caveat: :8080 is ALSO reachable directly from the tailnet, so
-        # on that listener CF-Connecting-IP / X-Forwarded-For can be
-        # spoofed by any tailnet peer. Apps must never use those headers
-        # for auth or rate-limiting.
-        trusted_proxies static private_ranges
+        # Loopback ONLY, deliberately. `private_ranges` also trusts
+        # RFC1918 and the tailnet's CGNAT range, which would let any
+        # tailnet or LAN peer set its own CF-Connecting-IP /
+        # X-Forwarded-For and have caddy believe it. cloudflared is the
+        # only legitimate proxy in front of this instance, and it is
+        # always 127.0.0.1 here.
+        trusted_proxies static 127.0.0.0/8 ::1
     }
 }
 

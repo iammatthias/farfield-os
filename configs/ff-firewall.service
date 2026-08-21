@@ -1,0 +1,19 @@
+[Unit]
+Description=farfield os — restrict container-published ports to the tailnet
+Documentation=https://github.com/iammatthias/farfield-os
+# Docker creates DOCKER-USER at daemon start and flushes it on restart,
+# so this has to run after docker AND again whenever docker restarts
+# (PartOf ties our restart to its).
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/ff-firewall
+
+[Install]
+WantedBy=multi-user.target
+# Re-apply after a docker restart, which wipes the chain.
+WantedBy=docker.service

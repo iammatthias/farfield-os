@@ -14,7 +14,10 @@ set -euo pipefail
 }
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-REAL_USER=${FF_REAL_USER:-}
+# Required: the sway config that still launches the retired daemons lives
+# in the user's home. Skipping that half while exiting 0 would mark this
+# converged with the respawn loops still in place.
+REAL_USER=${FF_REAL_USER:?ff-migrate must provide FF_REAL_USER}
 
 echo "retire-cv-presence: removing the presence daemon + wake listener"
 
@@ -31,16 +34,14 @@ ufw delete allow 8666/udp >/dev/null 2>&1 || true
 
 # Refresh the sway config (exec loops removed) so the next kiosk start
 # doesn't relaunch the daemons.
-if [ -n "$REAL_USER" ] && [ -d "/home/$REAL_USER/.config/sway" ]; then
+if [ -d "/home/$REAL_USER/.config/sway" ]; then
     install -m 644 -o "$REAL_USER" -g "$REAL_USER" \
         "$REPO/configs/sway-config" "/home/$REAL_USER/.config/sway/config"
 fi
 
 # Stale runtime plumbing (mode/override/push/status were daemon files;
 # state stays — ff-display and the tap-wake still share it).
-if [ -n "$REAL_USER" ]; then
-    uid=$(id -u "$REAL_USER" 2>/dev/null || true)
-    [ -n "$uid" ] && rm -f "/run/user/$uid/ff-display/"{mode,override,push,status,listener.lock,lock}
-fi
+uid=$(id -u "$REAL_USER" 2>/dev/null || true)
+[ -n "$uid" ] && rm -f "/run/user/$uid/ff-display/"{mode,override,push,status,listener.lock,lock}
 
 echo "retire-cv-presence: done"

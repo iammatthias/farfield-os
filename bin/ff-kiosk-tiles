@@ -18,9 +18,29 @@ set -u
 font_args=()
 [ -n "${FF_KIOSK_FONT:-}" ] && font_args=(--font="$FF_KIOSK_FONT")
 
+# ff-board is built from source by setup.sh; a box provisioned without a
+# working cargo toolchain won't have it. Without this check every tile
+# would respawn a missing binary twice a second, forever, showing six
+# empty terminals — the panel's failure mode should be legible instead.
+# btop in the first tile gives a usable display and the rest say why.
+if command -v ff-board >/dev/null 2>&1; then
+    BOARD_OK=1
+else
+    BOARD_OK=0
+    logger -t ff-kiosk-tiles "ff-board not installed — falling back to btop (build it: cargo build --release in board/)"
+fi
+
 launch() {
-    foot --app-id="ff-$1" "${font_args[@]}" \
-         -e sh -c "while :; do ff-board $1; sleep 2; done" &
+    local panel=$1 cmd
+    if [ "$BOARD_OK" = 1 ]; then
+        cmd="while :; do ff-board $panel; sleep 2; done"
+    elif [ "$panel" = host ] && command -v btop >/dev/null 2>&1; then
+        cmd="while :; do btop; sleep 2; done"
+    else
+        # Static, quiet, and honest — no respawn storm behind it.
+        cmd="printf '\n  ff-board is not installed.\n\n  Build it:\n    cd ~/farfield-os/board && cargo build --release\n    sudo install -m 755 target/release/ff-board /usr/local/bin/\n    ff-kiosk-restart\n\n'; sleep infinity"
+    fi
+    foot --app-id="ff-$panel" "${font_args[@]}" -e sh -c "$cmd" &
 }
 
 # Block until a panel's window is present in sway's tree, so the next
