@@ -15,6 +15,8 @@
 #   ff-agent --prompt "..."           one prompt, print the reply, exit
 #   ff-agent --prompt "..." --session-dir DIR
 #                                     ...continuing that directory's conversation
+#   ff-agent --prompt "..." --file a.jpg --file b.png
+#                                     ...with images attached (repeatable)
 #   ff-agent which                    print the default agent
 #   ff-agent set <name>               set the default agent
 #   ff-agent list                     which agents are known and installed
@@ -106,12 +108,17 @@ esac
 prompt=""
 session_dir=""
 have_prompt=0
+files=()
 while (($#)); do
     case "$1" in
         --prompt)
             prompt=${2:?--prompt needs a value}; have_prompt=1; shift 2 ;;
         --session-dir)
             session_dir=${2:?--session-dir needs a value}; shift 2 ;;
+        --file)
+            f=${2:?--file needs a path}
+            [ -r "$f" ] || die "cannot read $f"
+            files+=("$f"); shift 2 ;;
         *)
             die "unexpected argument: $1 (prompts go through --prompt)" ;;
     esac
@@ -134,16 +141,27 @@ case "$agent" in
         # -p is omp's non-interactive mode: it answers one prompt and exits,
         # printing the reply and nothing else. NOT --mode json, which emits an
         # NDJSON event log — the transcript, not the answer.
+        # omp attaches an image by naming it with an @ prefix as a positional
+        # argument; text files it wraps in a <file> block. Either way the model
+        # sees it, which is how a texted photo reaches the agent.
+        attach=()
+        for f in "${files[@]+"${files[@]}"}"; do attach+=("@$f"); done
         if [ -n "$session_dir" ]; then
             mkdir -p "$session_dir"
             # -c continues the newest session in that directory, so a caller
             # gets per-conversation memory by choosing a directory rather than
             # by tracking session ids.
-            exec omp -p -c --session-dir "$session_dir" -- "$prompt"
+            exec omp -p -c --session-dir "$session_dir" "${attach[@]+"${attach[@]}"}" -- "$prompt"
         fi
-        exec omp -p -- "$prompt"
+        exec omp -p "${attach[@]+"${attach[@]}"}" -- "$prompt"
         ;;
     claude)
+        # claude takes no image arguments on its one-shot path, so an attachment
+        # is named rather than shown. Said plainly instead of dropped silently:
+        # a caller that needs vision should select omp.
+        if [ ${#files[@]} -gt 0 ] 2>/dev/null; then
+            prompt="$prompt"$'\n\n'"[attached files this agent cannot open: ${files[*]}]"
+        fi
         # claude keys its sessions to the working directory rather than to a
         # session path, so a per-conversation directory is how the same
         # continuity is expressed here.
