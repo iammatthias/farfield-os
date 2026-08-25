@@ -65,15 +65,40 @@ EOF
 chmod 644 /etc/farfield/switchboard.env
 
 # ---------------------------------------------------------------------------
-# 3. Stop the container, and be ready to put it back if anything below fails.
+# 3. A shared group over the data directory.
+#
+#    The containers write as nonroot uid/gid 65532 and own everything in there.
+#    SQLite does not only write its database file — it creates -wal and -shm
+#    beside it — so the host process needs write access to the DIRECTORY, which
+#    a chown of the files alone does not give. Both sides therefore share a
+#    group: setgid so new files stay in it, group-writable so either can create.
+#
+#    The group must be NAMED. systemd rejects a bare gid in SupplementaryGroups
+#    with "failed to determine supplementary groups" and the unit never starts.
 # ---------------------------------------------------------------------------
-restore_container() {
-    echo "switchboard-to-host: FAILED — restoring the container" >&2
+getent group 65532 >/dev/null || groupadd -g 65532 farfield-data
+chmod 2775 "$DATA" "$DATA/pulse" 2>/dev/null || true
+for f in "$DATA"/keys.sqlite* "$DATA"/switchboard.sqlite* "$DATA"/pulse/switchboard.sqlite*; do
+    [ -e "$f" ] || continue
+    chgrp 65532 "$f" 2>/dev/null || true
+    chmod g+w "$f" 2>/dev/null || true
+done
+
+# ---------------------------------------------------------------------------
+# 4. Stop the container. It cannot be put back by compose — the same commit
+#    that adds this migration removes switchboard from docker-compose.yml — so
+#    the failure path below stops the unit and says so rather than pretending.
+# ---------------------------------------------------------------------------
+on_failure() {
+    echo "switchboard-to-host: FAILED — the line is DOWN" >&2
     systemctl stop "$UNIT" 2>/dev/null || true
     systemctl disable "$UNIT" 2>/dev/null || true
-    sudo -u "$REAL_USER" bash -lc "cd '$PROJECT' && docker compose up -d switchboard" 2>/dev/null || true
+    echo "  the container cannot be restored: this commit removed switchboard" >&2
+    echo "  from docker-compose.yml. To get the line back, either fix forward" >&2
+    echo "  (journalctl -u $UNIT, then ff-switchboard deploy) or check out the" >&2
+    echo "  previous farfield commit and 'docker compose up -d switchboard'." >&2
 }
-trap restore_container ERR
+trap on_failure ERR
 
 if [ -n "$container" ]; then
     echo "  stopping $container"
@@ -82,7 +107,7 @@ if [ -n "$container" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4. The database and its telemetry sidecar were written by the container's
+# 5. The database and its telemetry sidecar were written by the container's
 #    nonroot uid (65532). The host process runs as the real user and cannot
 #    open them until they change hands.
 # ---------------------------------------------------------------------------
@@ -93,14 +118,14 @@ for f in "$DATA"/switchboard.sqlite* "$DATA"/pulse/switchboard.sqlite*; do
 done
 
 # ---------------------------------------------------------------------------
-# 5. Install and start the unit.
+# 6. Install and start the unit.
 # ---------------------------------------------------------------------------
 install -m 644 "$REPO/configs/$UNIT" "/etc/systemd/system/$UNIT"
 systemctl daemon-reload
 systemctl enable --now "$UNIT"
 
 # ---------------------------------------------------------------------------
-# 6. Prove it. `active` only means the process started; /status means the
+# 7. Prove it. `active` only means the process started; /status means the
 #    database opened and the service is answering.
 # ---------------------------------------------------------------------------
 for _ in $(seq 1 15); do

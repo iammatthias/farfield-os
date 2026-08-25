@@ -19,6 +19,13 @@ After=docker.service
 Type=simple
 User=iam
 Group=iam
+# The fleet's data directory is written by the containers' nonroot uid (65532),
+# and SQLite needs to create WAL and SHM files beside its database — so this
+# process needs write access to the DIRECTORY, not just to its own file. The
+# shared group is how both get it. A bare gid is rejected here ("failed to
+# determine supplementary groups"), so the migration creates a named group at
+# that id.
+SupplementaryGroups=farfield-data
 WorkingDirectory=/home/iam/projects/farfield
 
 # Layered, later wins. The fleet's own .env carries the service keys and the
