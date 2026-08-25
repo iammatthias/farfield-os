@@ -1,0 +1,160 @@
+#!/bin/bash
+# farfield os — launch the box's coding agent.
+#
+# One indirection with one job: everything that wants an agent asks for "the
+# agent" rather than for omp. The name lives in a file, each agent's own
+# spelling of "run one prompt and exit" lives in the case below, and switching
+# harnesses is one word in one file — not a rebuild of whatever was calling it.
+#
+# That matters because the callers are not all interactive. switchboard hands
+# inbound iMessages to this script; a cron job or a hook can too. If any of them
+# hardcoded `omp -p`, swapping to claude would mean touching every one, and the
+# one that got missed would fail at 2am in a text message.
+#
+#   ff-agent                          launch interactively (what a human wants)
+#   ff-agent --prompt "..."           one prompt, print the reply, exit
+#   ff-agent --prompt "..." --session-dir DIR
+#                                     ...continuing that directory's conversation
+#   ff-agent which                    print the default agent
+#   ff-agent set <name>               set the default agent
+#   ff-agent list                     which agents are known and installed
+#
+# The output contract for --prompt is deliberate: the reply goes to stdout and
+# NOTHING else does. Diagnostics go to stderr. A caller texting the result to a
+# phone should not have to strip progress chatter out of it, and there is no
+# streaming here on purpose — you get the finished answer or an error.
+set -euo pipefail
+
+# The agents install to per-user prefixes (claude and herdr to ~/.local/bin,
+# omp to ~/.bun/bin), which an interactive shell has on PATH and a systemd unit
+# does not. Callers that are not shells are the whole point of this script, so
+# it finds them itself rather than making every unit file carry a PATH= line.
+for d in "$HOME/.local/bin" "$HOME/.bun/bin"; do
+    [ -d "$d" ] && case ":$PATH:" in *":$d:"*) ;; *) PATH="$d:$PATH" ;; esac
+done
+export PATH
+
+# Credentials for whichever agent is selected. Root-readable by systemd, owned
+# by the user for interactive use; absent on a box that has not been set up,
+# which is not an error here — the agent will say so better than we can.
+AGENT_ENV="${FF_AGENT_ENV:-/etc/farfield/agent.env}"
+if [ -r "$AGENT_ENV" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$AGENT_ENV"
+    set +a
+fi
+
+AGENT_FILE="${FF_AGENT_FILE:-$HOME/.config/farfield/defaults/agent}"
+KNOWN_AGENTS="omp claude"
+
+die() { echo "ff-agent: $*" >&2; exit 1; }
+
+default_agent() {
+    [ -f "$AGENT_FILE" ] || return 0
+    read -r agent <"$AGENT_FILE" 2>/dev/null || return 0
+    printf '%s' "${agent// /}"
+}
+
+set_default_agent() {
+    local name=$1
+    case " $KNOWN_AGENTS " in
+        *" $name "*) ;;
+        *) die "unknown agent '$name' — known: $KNOWN_AGENTS" ;;
+    esac
+    mkdir -p "$(dirname "$AGENT_FILE")"
+    printf '%s\n' "$name" >"$AGENT_FILE"
+    echo "default agent: $name"
+}
+
+# ---------------------------------------------------------------------------
+# Subcommands
+# ---------------------------------------------------------------------------
+case "${1:-}" in
+    which)
+        agent=$(default_agent)
+        [ -n "$agent" ] || die "no default agent set — try: ff-agent set omp"
+        echo "$agent"
+        exit 0
+        ;;
+    set)
+        [ $# -ge 2 ] || die "usage: ff-agent set <${KNOWN_AGENTS// /|}>"
+        set_default_agent "$2"
+        exit 0
+        ;;
+    list)
+        current=$(default_agent)
+        for a in $KNOWN_AGENTS; do
+            mark=" "; [ "$a" = "$current" ] && mark="*"
+            if command -v "$a" >/dev/null 2>&1; then
+                printf ' %s %-8s %s\n' "$mark" "$a" "$(command -v "$a")"
+            else
+                printf ' %s %-8s %s\n' "$mark" "$a" "not installed"
+            fi
+        done
+        exit 0
+        ;;
+    --help | -h)
+        sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Flags
+# ---------------------------------------------------------------------------
+prompt=""
+session_dir=""
+have_prompt=0
+while (($#)); do
+    case "$1" in
+        --prompt)
+            prompt=${2:?--prompt needs a value}; have_prompt=1; shift 2 ;;
+        --session-dir)
+            session_dir=${2:?--session-dir needs a value}; shift 2 ;;
+        *)
+            die "unexpected argument: $1 (prompts go through --prompt)" ;;
+    esac
+done
+
+agent=$(default_agent)
+[ -n "$agent" ] || die "no default agent set — try: ff-agent set omp"
+command -v "$agent" >/dev/null 2>&1 || die "$agent is not installed (ff-agent list)"
+
+# Interactive: hand the terminal over and get out of the way.
+if [ "$have_prompt" = 0 ]; then
+    exec "$agent"
+fi
+
+[ -n "$prompt" ] || die "--prompt was empty"
+
+# One-shot. Each agent gets its own spelling of the same request.
+case "$agent" in
+    omp)
+        # -p is omp's non-interactive mode: it answers one prompt and exits,
+        # printing the reply and nothing else. NOT --mode json, which emits an
+        # NDJSON event log — the transcript, not the answer.
+        if [ -n "$session_dir" ]; then
+            mkdir -p "$session_dir"
+            # -c continues the newest session in that directory, so a caller
+            # gets per-conversation memory by choosing a directory rather than
+            # by tracking session ids.
+            exec omp -p -c --session-dir "$session_dir" -- "$prompt"
+        fi
+        exec omp -p -- "$prompt"
+        ;;
+    claude)
+        # claude keys its sessions to the working directory rather than to a
+        # session path, so a per-conversation directory is how the same
+        # continuity is expressed here.
+        if [ -n "$session_dir" ]; then
+            mkdir -p "$session_dir"
+            cd "$session_dir"
+            exec claude -p --continue "$prompt"
+        fi
+        exec claude -p "$prompt"
+        ;;
+    *)
+        die "no invocation defined for '$agent' — add one to the case in $0"
+        ;;
+esac

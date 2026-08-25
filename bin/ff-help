@@ -20,7 +20,16 @@ Core
                               host line (one-shot fallback)
   ff-status-board           Unified status board (one-shot fallback)
   ff-docker-status          Docker containers + pm2 processes (one-shot)
+  ff-agent                  Launch the box's coding agent (alias: a).
+                              --prompt "..." runs one prompt and prints
+                              only the reply; --session-dir DIR keeps a
+                              conversation. `ff-agent set omp|claude`
+                              picks which harness everything uses.
   ff-deploy <name>          git pull + rebuild a project under ~/projects
+  ff-switchboard <cmd>      build/install/restart the switchboard host
+                              service (deploy|build|restart|status|logs).
+                              ff-deploy does NOT cover it — switchboard
+                              is a systemd unit, not a container.
   ff-kiosk-restart          Gracefully restart the kiosk compositor
                               (swaymsg exit; getty autologin respawns it)
   ff-kiosk-shot [out.png]   Screenshot the kiosk display via grim

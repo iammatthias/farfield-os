@@ -1,0 +1,52 @@
+[Unit]
+# farfield switchboard — the fleet's iMessage front door.
+#
+# It runs on the host rather than in the compose stack because it hands
+# messages to an agent: that means exec'ing a binary and reaching the user's
+# agent config and credentials, none of which a distroless container with one
+# data volume can do. Everything else in the fleet is still a container; this
+# is the deliberate exception, and lib/fleet marks it Host so the drift tests
+# expect it to be absent from docker-compose.yml.
+Description=farfield switchboard (iMessage -> the fleet)
+After=network-online.target ff-stack.service
+Wants=network-online.target
+# Not Requires: switchboard answers Photon's webhook and records the message
+# either way. A stack that is down should degrade the reply, not drop the
+# delivery and provoke a retry storm.
+After=docker.service
+
+[Service]
+Type=simple
+User=iam
+Group=iam
+WorkingDirectory=/home/iam/projects/farfield
+
+# Layered, later wins. The fleet's own .env carries the service keys and the
+# Photon credentials; agent.env carries the model provider key; switchboard.env
+# carries only what differs because this is a host process rather than a
+# container. Leading "-" so a missing file degrades instead of refusing to boot.
+EnvironmentFile=-/home/iam/projects/farfield/.env
+EnvironmentFile=-/etc/farfield/agent.env
+EnvironmentFile=-/etc/farfield/switchboard.env
+
+ExecStart=/usr/local/bin/switchboard
+Restart=on-failure
+RestartSec=5s
+
+# Hardening. This process now takes untrusted input from a phone number and
+# turns some of it into an agent invocation, so the blast radius of a mistake
+# is worth bounding even though the allowlist gates it first.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+# The fleet's data directory (its own database and telemetry sidecar) and the
+# agent's session state under the user's home. ProtectHome is deliberately NOT
+# set: the agent keeps its config and sessions there and cannot work without it.
+ReadWritePaths=/home/iam/projects/farfield/data
+
+[Install]
+WantedBy=multi-user.target

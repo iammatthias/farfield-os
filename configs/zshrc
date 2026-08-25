@@ -186,6 +186,13 @@ else
     alias la='ls -A'
 fi
 
+# ----- the agent -----
+# `a` launches whichever agent ff-agent is pointed at, in the current
+# directory. The indirection is the point: switchboard, cron, and this alias
+# all ask for "the agent" rather than for omp by name, so switching harnesses
+# is `ff-agent set claude` and nothing else changes.
+alias a="ff-agent"
+
 # bat as a better cat / pager
 alias cat="bat --style=plain --paging=never"
 alias less="bat --paging=always"

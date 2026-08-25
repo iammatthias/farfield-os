@@ -349,6 +349,53 @@ if [ -n "$REPO" ] && [ -d "$REPO/migrations" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+section "agent"
+# ---------------------------------------------------------------------------
+# The agent is not decoration: switchboard hands inbound iMessages to it, so a
+# missing binary or an unreadable key is a silent failure on someone's phone
+# rather than an error anybody sees here. Each half is checked separately
+# because either one alone looks like a working setup that does nothing.
+AGENT_FILE_D="${FF_AGENT_FILE:-$HOME/.config/farfield/defaults/agent}"
+AGENT_ENV_D="${FF_AGENT_ENV:-/etc/farfield/agent.env}"
+
+if ! command -v ff-agent >/dev/null 2>&1; then
+    warn "ff-agent is not installed — nothing can ask for 'the agent' by name"
+    note "fix: re-run setup.sh, or install bin/ff-agent to /usr/local/bin"
+elif [ ! -f "$AGENT_FILE_D" ]; then
+    warn "no default agent selected"
+    note "fix: ff-agent set omp"
+else
+    read -r selected <"$AGENT_FILE_D" 2>/dev/null || selected=""
+    selected=${selected// /}
+    if [ -z "$selected" ]; then
+        warn "$AGENT_FILE_D is empty"
+        note "fix: ff-agent set omp"
+    elif PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH" command -v "$selected" >/dev/null 2>&1; then
+        ok "default agent '$selected' installed"
+    else
+        err "default agent '$selected' is selected but not installed"
+        note "fix: ff-agent list, then ff-agent set <an installed one>"
+    fi
+fi
+
+if [ ! -e "$AGENT_ENV_D" ]; then
+    warn "$AGENT_ENV_D is absent — the agent has no credentials"
+    note "the agent will refuse every prompt; create it with a provider key, chmod 600"
+elif [ ! -r "$AGENT_ENV_D" ]; then
+    note "$AGENT_ENV_D exists but is not readable as $(id -un) — expected if it is root-owned"
+elif ! grep -qE '^[A-Z_]*API_KEY=.+' "$AGENT_ENV_D" 2>/dev/null; then
+    warn "$AGENT_ENV_D has no non-empty *API_KEY line"
+else
+    perms=$(stat -c '%a' "$AGENT_ENV_D" 2>/dev/null || echo "?")
+    if [ "$perms" = "600" ] || [ "$perms" = "640" ]; then
+        ok "agent credentials present ($AGENT_ENV_D, mode $perms)"
+    else
+        warn "agent credentials are mode $perms — a provider key should be 600"
+        note "fix: sudo chmod 600 $AGENT_ENV_D"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 if [ "$QUIET" = 1 ] && [ "$ERRORS" = 0 ] && [ "$WARNS" = 0 ]; then
     exit 0
 fi

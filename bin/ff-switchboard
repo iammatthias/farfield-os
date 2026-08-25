@@ -1,0 +1,81 @@
+#!/bin/bash
+# farfield os — build, install, and control the switchboard host service.
+#
+# switchboard is the one farfield app that is not a container, so `ff-deploy
+# farfield` does not touch it: that rebuilds the compose stack, and this binary
+# is not in it. This is its deploy path.
+#
+#   ff-switchboard deploy     build from the checkout, install, restart
+#   ff-switchboard build      build only (into the checkout's bin/)
+#   ff-switchboard restart    restart the unit
+#   ff-switchboard status     unit status + the service's own /status
+#   ff-switchboard logs [n]   recent journal lines (default 50)
+#
+# Deploy order matters and is enforced below: build first, install only on a
+# successful build. A half-installed binary would take the line down, and the
+# line is how the box gets asked to fix itself.
+set -euo pipefail
+
+PROJECT="${FF_SWITCHBOARD_PROJECT:-$HOME/projects/farfield}"
+UNIT=ff-switchboard.service
+BIN=/usr/local/bin/switchboard
+
+die() { echo "ff-switchboard: $*" >&2; exit 1; }
+
+need_project() {
+    [ -d "$PROJECT/apps/switchboard" ] || die "no switchboard source at $PROJECT (set FF_SWITCHBOARD_PROJECT)"
+}
+
+do_build() {
+    need_project
+    command -v go >/dev/null 2>&1 || die "go is not installed"
+    echo "==> building switchboard from $PROJECT"
+    (cd "$PROJECT/apps/switchboard" && go build -o "$PROJECT/bin/switchboard" .)
+    echo "    $($PROJECT/bin/switchboard --help 2>&1 | head -1 || true)"
+    ls -l "$PROJECT/bin/switchboard"
+}
+
+case "${1:-}" in
+    build)
+        do_build
+        ;;
+    deploy)
+        do_build
+        echo "==> installing $BIN"
+        sudo install -m 755 "$PROJECT/bin/switchboard" "$BIN"
+        echo "==> restarting $UNIT"
+        sudo systemctl restart "$UNIT"
+        sleep 2
+        systemctl is-active --quiet "$UNIT" || die "unit did not come up — ff-switchboard logs"
+        echo "==> up"
+        "$0" status
+        ;;
+    restart)
+        sudo systemctl restart "$UNIT"
+        sleep 1
+        systemctl status "$UNIT" --no-pager --lines=0
+        ;;
+    status)
+        systemctl status "$UNIT" --no-pager --lines=0 || true
+        # The unit being active only means the process started; /status is what
+        # says the database opened and the line is configured.
+        port=${SWITCHBOARD_PORT:-8802}
+        for host in "${FARFIELD_BIND_IP:-172.17.0.1}" 127.0.0.1; do
+            if out=$(curl -fsS -m 5 "http://$host:$port/status" 2>/dev/null); then
+                echo "  /status ($host:$port): $out"
+                exit 0
+            fi
+        done
+        echo "  /status: unreachable on :$port" >&2
+        exit 1
+        ;;
+    logs)
+        journalctl -u "$UNIT" -n "${2:-50}" --no-pager
+        ;;
+    --help | -h | "")
+        sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *)
+        die "unknown subcommand '$1' (try --help)"
+        ;;
+esac

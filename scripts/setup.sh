@@ -273,6 +273,22 @@ if ! sudo -u "$REAL_USER" bash -c '[ -x "$HOME/.local/bin/claude" ]' >/dev/null 
         || FAILED_SERVICES+=("claude-code")
 fi
 
+# omp (omp.sh — can1357/oh-my-pi) — the box's default agent. Installed through
+# its own installer, which lands it under ~/.bun/bin. Two agents rather than
+# one on purpose: ff-agent picks between them by name, so a harness that
+# regresses is a one-word change rather than a migration.
+if ! sudo -u "$REAL_USER" bash -c 'command -v omp || [ -x "$HOME/.bun/bin/omp" ]' >/dev/null 2>&1; then
+    sudo -u "$REAL_USER" bash -c 'curl -fsSL https://omp.sh/install | sh' \
+        || FAILED_SERVICES+=("omp")
+fi
+
+# The default agent is a single word in a file that ff-agent reads. Seeded only
+# when absent, so a deliberate switch to claude survives re-running setup.
+sudo -u "$REAL_USER" bash -c '
+    f="$HOME/.config/farfield/defaults/agent"
+    [ -f "$f" ] || { mkdir -p "$(dirname "$f")" && echo omp >"$f"; }
+' || true
+
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshrc"  "$REAL_HOME/.zshrc"
 install -m 644 -o "$REAL_USER" -g "$REAL_USER" "$CONFIGS/zshenv" "$REAL_HOME/.zshenv"
 # Own ~/.config itself FIRST — `install -d -o user path/sub` creates
@@ -657,6 +673,8 @@ install -m 755 "$BIN/ff-project-init"     /usr/local/bin/ff-project-init
 install -m 755 "$BIN/ff-bootstrap"        /usr/local/bin/ff-bootstrap
 install -m 755 "$BIN/ff-deploy"           /usr/local/bin/ff-deploy
 install -m 755 "$BIN/ff-migrate"          /usr/local/bin/ff-migrate
+install -m 755 "$BIN/ff-agent"            /usr/local/bin/ff-agent
+install -m 755 "$BIN/ff-switchboard"       /usr/local/bin/ff-switchboard
 install -m 755 "$BIN/ff-doctor"           /usr/local/bin/ff-doctor
 install -m 755 "$BIN/ff-firewall"         /usr/local/bin/ff-firewall
 

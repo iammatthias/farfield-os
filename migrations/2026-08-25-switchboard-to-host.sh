@@ -1,0 +1,116 @@
+#!/bin/bash
+# Move switchboard from the compose stack to a host systemd unit.
+#
+# It has to hand messages to an agent, which means exec'ing a binary and
+# reaching the user's agent config and credentials. A distroless container with
+# one data volume cannot, so it stops being a container. This cannot live in
+# setup.sh because it has to UNDO a running container a fresh install would
+# never have created.
+#
+# Runs as root via ff-migrate, once per box.
+set -euo pipefail
+
+REAL_USER=${FF_REAL_USER:?ff-migrate must provide FF_REAL_USER}
+REAL_HOME="/home/$REAL_USER"
+REPO=$(cd "$(dirname "$0")/.." && pwd)
+PROJECT="$REAL_HOME/projects/farfield"
+DATA="$PROJECT/data"
+UNIT=ff-switchboard.service
+
+# Guard: nothing to converge if the unit is already running and the container
+# is gone. A fresh box reaches that state through setup.sh, not through here.
+container=$(docker ps -a --filter 'name=farfield-switchboard' --format '{{.Names}}' 2>/dev/null | head -1 || true)
+if [ -z "$container" ] && systemctl is-enabled --quiet "$UNIT" 2>/dev/null; then
+    echo "switchboard-to-host: already converged"
+    exit 0
+fi
+
+[ -d "$PROJECT/apps/switchboard" ] || {
+    echo "switchboard-to-host: no switchboard source at $PROJECT — pull farfield first" >&2
+    exit 1
+}
+
+echo "switchboard-to-host: converging"
+
+# ---------------------------------------------------------------------------
+# 1. Build first. Nothing is torn down until there is something to replace it.
+# ---------------------------------------------------------------------------
+echo "  building"
+sudo -u "$REAL_USER" bash -lc "cd '$PROJECT/apps/switchboard' && go build -o '$PROJECT/bin/switchboard' ." || {
+    echo "switchboard-to-host: build failed — leaving the container running" >&2
+    exit 1
+}
+install -m 755 "$PROJECT/bin/switchboard" /usr/local/bin/switchboard
+
+# ---------------------------------------------------------------------------
+# 2. Host-process overrides. The fleet's .env is shared with the containers and
+#    says nothing about how a host process should bind, so the difference lives
+#    in its own file rather than being edited into the shared one.
+#
+#    HOST is the docker0 gateway, not loopback: caddy runs in a container and
+#    reaches the host through host.docker.internal, so a service bound to
+#    127.0.0.1 is invisible to it while looking perfectly healthy locally.
+# ---------------------------------------------------------------------------
+bind_ip=$(grep -E '^FARFIELD_BIND_IP=' "$PROJECT/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' || true)
+bind_ip=${bind_ip:-172.17.0.1}
+install -d -m 755 /etc/farfield
+cat >/etc/farfield/switchboard.env <<EOF
+# Written by migrations/2026-08-25-switchboard-to-host.sh.
+# Only what differs because switchboard is a host process, not a container.
+HOST=$bind_ip
+SWITCHBOARD_PORT=8802
+SWITCHBOARD_DB_PATH=$DATA/switchboard.sqlite
+KEYS_DB_PATH=$DATA/keys.sqlite
+EOF
+chmod 644 /etc/farfield/switchboard.env
+
+# ---------------------------------------------------------------------------
+# 3. Stop the container, and be ready to put it back if anything below fails.
+# ---------------------------------------------------------------------------
+restore_container() {
+    echo "switchboard-to-host: FAILED — restoring the container" >&2
+    systemctl stop "$UNIT" 2>/dev/null || true
+    systemctl disable "$UNIT" 2>/dev/null || true
+    sudo -u "$REAL_USER" bash -lc "cd '$PROJECT' && docker compose up -d switchboard" 2>/dev/null || true
+}
+trap restore_container ERR
+
+if [ -n "$container" ]; then
+    echo "  stopping $container"
+    docker stop "$container" >/dev/null
+    docker rm "$container" >/dev/null
+fi
+
+# ---------------------------------------------------------------------------
+# 4. The database and its telemetry sidecar were written by the container's
+#    nonroot uid (65532). The host process runs as the real user and cannot
+#    open them until they change hands.
+# ---------------------------------------------------------------------------
+for f in "$DATA"/switchboard.sqlite* "$DATA"/pulse/switchboard.sqlite*; do
+    [ -e "$f" ] || continue
+    chown "$REAL_USER:$REAL_USER" "$f"
+    echo "  chown $(basename "$f")"
+done
+
+# ---------------------------------------------------------------------------
+# 5. Install and start the unit.
+# ---------------------------------------------------------------------------
+install -m 644 "$REPO/configs/$UNIT" "/etc/systemd/system/$UNIT"
+systemctl daemon-reload
+systemctl enable --now "$UNIT"
+
+# ---------------------------------------------------------------------------
+# 6. Prove it. `active` only means the process started; /status means the
+#    database opened and the service is answering.
+# ---------------------------------------------------------------------------
+for _ in $(seq 1 15); do
+    if curl -fsS -m 3 "http://$bind_ip:8802/status" >/dev/null 2>&1; then
+        trap - ERR
+        echo "switchboard-to-host: converged — $(curl -fsS -m 3 "http://$bind_ip:8802/status")"
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "switchboard-to-host: unit started but /status never answered on $bind_ip:8802" >&2
+false
