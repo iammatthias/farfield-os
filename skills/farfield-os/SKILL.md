@@ -5,6 +5,7 @@ description: >
   /srv/stack, the Caddyfile, Cloudflare Tunnel, Tailscale, UFW or DOCKER-USER,
   the docker compose stack, snapper snapshots, or any ff-* helper. Triggers:
   ff-deploy, ff-doctor, ff-migrate, ff-update, ff-firewall, ff-board,
+  ff-agent, ff-switchboard, omp, claude, the agent, switchboard, texting the box,
   add-site, add-public-site, remove-site, list-sites, test-caddy, Caddyfile,
   caddy, cloudflared, tunnel, tailscale, tailnet, snapper, snap-pac,
   grub-btrfs, /srv/stack, /srv/projects, ~/projects, kiosk, sway, herdr,
@@ -80,6 +81,7 @@ Read the one that matches the task before starting:
 - [`ingress.md`](ingress.md) — Caddy, the tunnel, sites, hostnames, firewall
 - [`stack.md`](stack.md) — the `/srv/stack` compose stack and its lifecycle
 - [`deploy.md`](deploy.md) — deploying projects, `ff-deploy`, `ff-migrate`
+- [`agents.md`](agents.md) — `ff-agent`, the switchboard host service, the persona
 - [`recovery.md`](recovery.md) — snapshots, rollback, and what to check when
 
 ## Shape of the box
@@ -96,6 +98,9 @@ Read the one that matches the task before starting:
   through cloudflared over loopback inside caddy's namespace.
 - **Snapshots** — on btrfs roots, snapper plus snap-pac photograph the system
   before and after every pacman transaction; grub-btrfs boots into one.
-- **Agents** — Claude Code is installed natively on the host. `~/CLAUDE.md`
-  carries always-on system context; this skill is the on-demand depth.
+- **Agents** — omp and Claude Code are both installed; `ff-agent` decides which
+  one anything gets. `~/CLAUDE.md` carries always-on system context; this skill
+  is the on-demand depth. See `agents.md`.
+- **switchboard** — a systemd unit rather than a container, because it hands
+  inbound iMessages to an agent. `ff-deploy farfield` does not cover it.
 - **Sessions** — herdr provides persistent terminals that survive an SSH drop.
