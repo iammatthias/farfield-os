@@ -89,7 +89,7 @@ services:
     # (https://github.com/cloudflare/cloudflared/releases), edit the
     # tag, then `docker compose pull cloudflared && docker compose up -d`.
     # 2026.3.0 is the version verified running on this deployment.
-    image: cloudflare/cloudflared:2026.3.0
+    image: cloudflare/cloudflared:2026.8.2
     container_name: ff-cloudflared
     profiles: ["cloudflared"]
     logging: *default-logging
