@@ -74,6 +74,37 @@ when picking up work on the box**, and again before declaring something fixed.
 
 `ff-help` prints the full command reference. `ff-info` is the system report.
 
+## Hashing — use `@noble/hashes`, never hashlib and never by hand
+
+Any hash the box computes — contract bytecode, content addresses, checksums —
+goes through [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) under
+bun. It is audited, dependency-free, and covers keccak, sha2, sha3, blake and
+the rest.
+
+**Python's `hashlib` is a trap for Ethereum work.** `hashlib.sha3_256` is
+FIPS-202 SHA3, which differs from Keccak-256 only in a padding byte — so it
+returns a plausible, wrong 32-byte answer with no error. `cast` is not
+installed here. Hand-rolling the permutation works but is unreviewed code on
+the verification path, which is the wrong place for it.
+
+    cd /tmp/hashwork && bun add @noble/hashes
+
+    // NOTE: v2 requires the .js extension in the specifier.
+    // "@noble/hashes/sha3" fails to resolve; "@noble/hashes/sha3.js" works.
+    import { keccak_256 } from "@noble/hashes/sha3.js";
+    import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+
+    console.log("0x" + bytesToHex(keccak_256(hexToBytes(codeHex))));
+
+**Pin known vectors before trusting any hash output**, whoever computed it:
+
+    keccak256("")    c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+    keccak256("abc") 4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+
+A hash that matches an expectation is worthless if the hasher is wrong, and a
+wrong hasher is silent. Verified against a live contract on 2026-09-02: noble
+and an independent implementation agreed byte for byte.
+
 ## Topic guides
 
 Read the one that matches the task before starting:
