@@ -49,6 +49,10 @@
 # file (host: /srv/stack/data/caddy/data/access/access.log) for per-site
 # request rates and status-code mixes on the kiosk. mode 644 so the
 # unprivileged board can read it.
+#
+# Location is dropped from the logged response headers: a redirect can carry a
+# bearer credential (library sends book downloads to presigned R2 URLs), and
+# this file is world-readable. Nothing reads resp_headers from it.
 (ff_access_log) {
     log {
         output file /data/access/access.log {
@@ -56,7 +60,12 @@
             roll_keep 2
             mode 644
         }
-        format json
+        format filter {
+            wrap json
+            fields {
+                resp_headers>Location delete
+            }
+        }
     }
 }
 
