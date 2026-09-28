@@ -36,6 +36,13 @@ EnvironmentFile=-/home/iam/projects/farfield/.env
 EnvironmentFile=-/etc/farfield/agent.env
 EnvironmentFile=-/etc/farfield/switchboard.env
 
+# The agent works outside the farfield checkout. Its workspace and session
+# history used to sit under data/ inside the git repo, so the harness found
+# the repo's own skills and treated the source tree as its project.
+# systemd creates /var/lib/switchboard-agent owned by User= on start.
+StateDirectory=switchboard-agent
+StateDirectoryMode=0700
+Environment=SWITCHBOARD_STATE_DIR=/var/lib/switchboard-agent
 ExecStart=/usr/local/bin/switchboard
 Restart=on-failure
 RestartSec=5s
