@@ -112,7 +112,9 @@ files=()
 while (($#)); do
     case "$1" in
         --prompt)
-            prompt=${2:?--prompt needs a value}; have_prompt=1; shift 2 ;;
+            # ${2?} not ${2:?}: an empty prompt is legal when a photo rides
+            # along — a bare photo texted with no caption is a normal message.
+            prompt=${2?--prompt needs a value}; have_prompt=1; shift 2 ;;
         --session-dir)
             session_dir=${2:?--session-dir needs a value}; shift 2 ;;
         --file)
@@ -133,11 +135,22 @@ if [ "$have_prompt" = 0 ]; then
     exec "$agent"
 fi
 
-[ -n "$prompt" ] || die "--prompt was empty"
+if [ -z "$prompt" ]; then
+    [ ${#files[@]} -gt 0 ] 2>/dev/null || die "--prompt was empty"
+    prompt="(photo attached, no caption)"
+fi
 
 # One-shot. Each agent gets its own spelling of the same request.
 case "$agent" in
     omp)
+        # The model is named on every call, never left to the session. omp -c
+        # resumes a session with the model it was started on, so a model that
+        # retires takes that conversation down with it — config.yml was edited
+        # and ignored for a month while every text failed. FF_AGENT_MODEL (from
+        # agent.env) wins; otherwise the configured default role.
+        model=${FF_AGENT_MODEL:-$(sed -n "s/^[[:space:]]*default:[[:space:]]*//p" "$HOME/.omp/agent/config.yml" 2>/dev/null | head -1)}
+        model_arg=()
+        [ -n "$model" ] && model_arg=("--model=$model")
         # -p is omp's non-interactive mode: it answers one prompt and exits,
         # printing the reply and nothing else. NOT --mode json, which emits an
         # NDJSON event log — the transcript, not the answer.
@@ -151,9 +164,9 @@ case "$agent" in
             # -c continues the newest session in that directory, so a caller
             # gets per-conversation memory by choosing a directory rather than
             # by tracking session ids.
-            exec omp -p -c --session-dir "$session_dir" "${attach[@]+"${attach[@]}"}" -- "$prompt"
+            exec omp -p -c "${model_arg[@]+"${model_arg[@]}"}" --session-dir "$session_dir" "${attach[@]+"${attach[@]}"}" -- "$prompt"
         fi
-        exec omp -p "${attach[@]+"${attach[@]}"}" -- "$prompt"
+        exec omp -p "${model_arg[@]+"${model_arg[@]}"}" "${attach[@]+"${attach[@]}"}" -- "$prompt"
         ;;
     claude)
         # claude takes no image arguments on its one-shot path, so an attachment
@@ -168,9 +181,9 @@ case "$agent" in
         if [ -n "$session_dir" ]; then
             mkdir -p "$session_dir"
             cd "$session_dir"
-            exec claude -p --continue "$prompt"
+            exec claude -p --continue -- "$prompt"
         fi
-        exec claude -p "$prompt"
+        exec claude -p -- "$prompt"
         ;;
     *)
         die "no invocation defined for '$agent' — add one to the case in $0"
