@@ -36,7 +36,6 @@ do_build() {
     # The agent's persona tells it to act on the fleet through the farfield
     # CLI; without this it was never installed and the agent guessed curl.
     (cd "$PROJECT/apps/farfield" && go build -trimpath -o "$PROJECT/bin/farfield" .)
-    echo "    $($PROJECT/bin/switchboard --help 2>&1 | head -1 || true)"
     ls -l "$PROJECT/bin/switchboard"
 }
 
