@@ -82,10 +82,18 @@ else
     info "A login URL will print below — open it and approve the device."
     info "This is what makes \`ssh $(hostname)\` work from anywhere."
     echo
-    # --accept-dns=false: a server should keep its own resolv.conf.
+    # DNS: accepted only where systemd-resolved runs it. There Tailscale
+    # sets its resolver on the tailscale0 link for the tailnet's names alone
+    # and never touches resolv.conf — without it the box cannot resolve its
+    # own *.ts.net name. Anywhere else accepting would rewrite resolv.conf,
+    # and a server keeps its own.
     # No --ssh: plain sshd answers on the tailnet IP; Tailscale SSH
     # would intercept it and change the auth model.
-    sudo tailscale up --accept-dns=false
+    accept_dns=false
+    if systemctl is-active --quiet systemd-resolved && grep -q '^nameserver 127\.0\.0\.53' /etc/resolv.conf; then
+        accept_dns=true
+    fi
+    sudo tailscale up --accept-dns=$accept_dns
     TS_IP=$(tailscale ip -4 2>/dev/null | head -1)
     if [ -n "$TS_IP" ]; then
         ok "Authenticated. Tailnet IP: $TS_IP"

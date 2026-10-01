@@ -101,10 +101,6 @@ if [ -d /etc/systemd/system/systemd-networkd-wait-online.service.d ]; then
     rm -f /etc/systemd/system/systemd-networkd-wait-online.service.d/ff-any.conf
     rmdir --ignore-fail-on-non-empty /etc/systemd/system/systemd-networkd-wait-online.service.d
 fi
-if [ -d /etc/systemd/system/tailscaled.service.d ]; then
-    rm -f /etc/systemd/system/tailscaled.service.d/ff-tailnet-dns.conf
-    rmdir --ignore-fail-on-non-empty /etc/systemd/system/tailscaled.service.d
-fi
 
 # Docker daemon.json: restore the pre-farfield os original if we snapshotted one,
 # otherwise remove the file farfield os wrote.
@@ -252,8 +248,7 @@ rm -f /usr/local/bin/ff-info /usr/local/bin/ff-update /usr/local/bin/ff-help \
       /usr/local/bin/ff-deploy /usr/local/bin/ff-board \
       /usr/local/bin/ff-kiosk-presence /usr/local/bin/ff-display \
       /usr/local/bin/ff-kiosk-wake-listener /usr/local/bin/ff-migrate \
-      /usr/local/bin/ff-doctor /usr/local/bin/ff-firewall \
-      /usr/local/bin/ff-tailnet-dns
+      /usr/local/bin/ff-doctor /usr/local/bin/ff-firewall
 
 # Migration markers (and the legacy gnar-deploy compat symlink, if present)
 rm -rf /var/lib/farfield

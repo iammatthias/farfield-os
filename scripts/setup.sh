@@ -612,15 +612,6 @@ systemctl enable --now ff-firewall.service 2>/dev/null || true
 # reboots once it happens.
 systemctl enable --now tailscaled 2>/dev/null || true
 
-# The box keeps its own resolv.conf (--accept-dns=false), but must still
-# resolve the tailnet's names — its own ts.net name included. Split DNS on
-# tailscale0 for ts.net only, reapplied on every tailscaled start.
-install -m 755 "$BIN/ff-tailnet-dns" /usr/local/bin/ff-tailnet-dns
-install -d /etc/systemd/system/tailscaled.service.d
-install -m 644 "$CONFIGS/tailscaled-tailnet-dns.conf" /etc/systemd/system/tailscaled.service.d/ff-tailnet-dns.conf
-systemctl daemon-reload
-/usr/local/bin/ff-tailnet-dns || true
-
 # -----------------------------------------------------------------------------
 # Per-user runtime tooling
 # -----------------------------------------------------------------------------

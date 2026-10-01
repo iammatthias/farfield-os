@@ -70,13 +70,16 @@ Host `tailscaled` owns the box's single tailnet identity; Tailscale is
 deliberately not in the stack. SSH and Caddy's published ports land on its
 address. `/var/lib/tailscale/` is that identity — do not clear it casually.
 
-The box joins with `--accept-dns=false` and keeps its own resolvers, so it
-resolves tailnet names only through **split DNS**: `ff-tailnet-dns` (run by a
-`tailscaled` drop-in on every start) points `tailscale0` at 100.100.100.100 for
-`~ts.net` and nothing else. Without it the box cannot resolve its own
-`*.ts.net` name while every other device can — the "works from my phone, not
-from the box" failure. `ff-doctor` checks it. Docker containers do not see
-that link's DNS; give them IPs, not tailnet names.
+**Tailnet DNS is accepted, and stays split.** Under systemd-resolved,
+Tailscale sets its resolver (100.100.100.100) on the `tailscale0` link for the
+tailnet's own domains only, with `Default Route: no`; `/etc/resolv.conf` and
+every other lookup stay the box's. The box used to join with
+`--accept-dns=false`, which protected nothing here and left it unable to resolve
+its own `*.ts.net` name while every other device could — the "works from my
+phone, not from the box" failure. Don't turn it back off. If the admin console
+ever sets the tailnet to *override local DNS*, the link becomes the default
+route for everything; `ff-doctor` checks both. Docker containers don't get the
+link's DNS — give them IPs, not tailnet names.
 
 ## Previews
 
