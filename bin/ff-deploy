@@ -6,6 +6,11 @@
 #   ff-deploy myapp
 #
 # FF_PROJECTS overrides the project root (default ~/projects).
+#
+# A project that also builds a host service rides along: deploying the
+# checkout ff-switchboard builds from (~/projects/farfield) redeploys the
+# switchboard unit after the stack, so the one app that is not a container
+# never runs an old binary against new siblings.
 set -euo pipefail
 
 name="${1:-}"
@@ -44,3 +49,13 @@ echo "==> $name: docker compose up -d --build"
 cd "$compose_dir"
 docker compose up -d --build
 docker compose ps --format 'table {{.Name}}\t{{.Status}}'
+
+# switchboard: a systemd unit, not a container. Only where it is installed —
+# a box without the unit has nothing to redeploy.
+sb_project="${FF_SWITCHBOARD_PROJECT:-$HOME/projects/farfield}"
+if [ "$(realpath "$dir")" = "$(realpath "$sb_project" 2>/dev/null || echo -)" ] &&
+    command -v ff-switchboard >/dev/null 2>&1 &&
+    systemctl cat ff-switchboard.service >/dev/null 2>&1; then
+    echo "==> $name: switchboard (host unit)"
+    ff-switchboard deploy
+fi

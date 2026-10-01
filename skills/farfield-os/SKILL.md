@@ -133,5 +133,6 @@ Read the one that matches the task before starting:
   one anything gets. `~/CLAUDE.md` carries always-on system context; this skill
   is the on-demand depth. See `agents.md`.
 - **switchboard** — a systemd unit rather than a container, because it hands
-  inbound iMessages to an agent. `ff-deploy farfield` does not cover it.
+  inbound iMessages to an agent. `ff-deploy farfield` redeploys it after the
+  stack, restarting the unit only when its binary changed.
 - **Sessions** — herdr provides persistent terminals that survive an SSH drop.

@@ -28,8 +28,8 @@ Core
   ff-deploy <name>          git pull + rebuild a project under ~/projects
   ff-switchboard <cmd>      build/install/restart the switchboard host
                               service (deploy|build|restart|status|logs).
-                              ff-deploy does NOT cover it — switchboard
-                              is a systemd unit, not a container.
+                              ff-deploy farfield runs its deploy too,
+                              restarting only when the binary changed.
   ff-kiosk-restart          Gracefully restart the kiosk compositor
                               (swaymsg exit; getty autologin respawns it)
   ff-kiosk-shot [out.png]   Screenshot the kiosk display via grim

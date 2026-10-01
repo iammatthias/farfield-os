@@ -70,6 +70,14 @@ Host `tailscaled` owns the box's single tailnet identity; Tailscale is
 deliberately not in the stack. SSH and Caddy's published ports land on its
 address. `/var/lib/tailscale/` is that identity — do not clear it casually.
 
+The box joins with `--accept-dns=false` and keeps its own resolvers, so it
+resolves tailnet names only through **split DNS**: `ff-tailnet-dns` (run by a
+`tailscaled` drop-in on every start) points `tailscale0` at 100.100.100.100 for
+`~ts.net` and nothing else. Without it the box cannot resolve its own
+`*.ts.net` name while every other device can — the "works from my phone, not
+from the box" failure. `ff-doctor` checks it. Docker containers do not see
+that link's DNS; give them IPs, not tailnet names.
+
 ## Previews
 
 `*.<preview apex>` is a tailnet-private wildcard with a real Let's Encrypt

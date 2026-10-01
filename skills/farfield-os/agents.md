@@ -50,14 +50,16 @@ because it hands messages to an agent: exec'ing a binary and reading the user's
 agent config is not something a distroless image with one data volume can do.
 
 ```bash
-ff-switchboard deploy    # build from ~/projects/farfield, install, restart
+ff-switchboard deploy    # build from ~/projects/farfield; install + restart if changed
 ff-switchboard status    # unit + the service's own /status
 ff-switchboard logs [n]
 ```
 
-**`ff-deploy farfield` does NOT cover it.** That rebuilds the compose stack, and
-switchboard is not in it. Deploying farfield without also running
-`ff-switchboard deploy` leaves the old binary running against new siblings.
+**`ff-deploy farfield` covers it.** After the compose stack, it runs
+`ff-switchboard deploy`, which rebuilds and compares the binary with the
+installed one and restarts the unit only when they differ. A restart fails any
+agent turn in flight, so a farfield deploy that did not touch switchboard leaves
+it running. (Builds use `-trimpath` so the same source gives the same bytes.)
 
 Two things that will bite:
 
